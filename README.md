@@ -1,2 +1,2 @@
-# ZapXR
-A new age Zapper
+# WiLD-SLAM
+WiFi Localization, LiDAR Mapping
