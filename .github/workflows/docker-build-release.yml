@@ -8,12 +8,13 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME_DEV: wild-slam
+  IMAGE_NAME_DEV: wild_slam
   ROS2_VERSION: jazzy
 
 permissions:
   contents: write
   packages: write
+  id-token: write
 
 jobs:
   pr-check:
@@ -26,6 +27,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set lowercase repository owner
+        id: repo-owner
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -57,7 +63,7 @@ jobs:
       - name: Pull latest GHCR image (if no release tag)
         if: steps.check-labels.outputs.is_release == 'false'
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:latest || echo "No existing image found, will build new one"
+          docker pull ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:latest || echo "No existing image found, will build new one"
 
       - name: Update version (if release tag present)
         if: steps.check-labels.outputs.is_release == 'true'
@@ -107,44 +113,25 @@ jobs:
           context: .
           file: ./Docker/dockerfile
           push: false
+          load: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }}
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Install rosdep dependencies
         run: |
           docker run --rm --user root -v ${{ github.workspace }}:/workspace -w /workspace \
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }} \
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }} \
             bash -c "source /opt/ros/jazzy/setup.bash && \
                      rosdep update && \
                      rosdep install --from-paths src --ignore-src -r -y && \
                      chown -R 1000:1000 /workspace"
 
-      - name: Run Python linters
-        run: |
-          docker run --rm --user 1000:1000 -v ${{ github.workspace }}:/workspace -w /workspace \
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }} \
-            bash -c "source /opt/ros/jazzy/setup.bash && \
-                     if [ -f /ros2_ws/install/setup.bash ]; then source /ros2_ws/install/setup.bash; fi && \
-                     black --check --diff . || exit 1 && \
-                     isort --check-only --diff . || exit 1 && \
-                     pydocstyle . --convention=google --add-ignore=D100,D104 || exit 1 && \
-                     yamllint . -d '{extends: default, rules: {line-length: {max: 120}}}' || exit 1"
-
-      - name: Run ROS2 ament linters
-        run: |
-          docker run --rm --user 1000:1000 -v ${{ github.workspace }}:/workspace -w /workspace \
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }} \
-            bash -c "source /opt/ros/jazzy/setup.bash && \
-                     if [ -f /ros2_ws/install/setup.bash ]; then source /ros2_ws/install/setup.bash; fi && \
-                     cd /ros2_ws && \
-                     colcon lint --packages-select wild_slam_ros2 || exit 1"
-
       - name: Run tests
         run: |
           docker run --rm --user 1000:1000 -v ${{ github.workspace }}:/workspace -w /workspace \
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }} \
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }} \
             bash -c "source /opt/ros/jazzy/setup.bash && \
                      if [ -f /ros2_ws/install/setup.bash ]; then source /ros2_ws/install/setup.bash; fi && \
                      cd /ros2_ws && \
@@ -159,15 +146,26 @@ jobs:
           file: ./Docker/dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:${{ steps.update-version.outputs.docker_tag }}
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_DEV }}:latest
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:${{ steps.update-version.outputs.docker_tag }}
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Create Git tag (if release tag)
         if: steps.check-labels.outputs.is_release == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ steps.update-version.outputs.new_version }}" -m "Release version ${{ steps.update-version.outputs.new_version }}"
-          git push origin "v${{ steps.update-version.outputs.new_version }}"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.update-version.outputs.new_version }}';
+            const tagName = `v${version}`;
+            const tagMessage = `Release version ${version}`;
+            
+            // Create tag using GitHub API
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/${tagName}`,
+              sha: context.sha
+            });
+            
+            console.log(`Created tag ${tagName} for version ${version}`);

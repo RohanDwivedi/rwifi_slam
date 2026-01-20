@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'wild-slam'
+package_name = 'wild_slam_ros2'
 
 setup(
     name=package_name,

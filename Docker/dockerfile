@@ -51,11 +51,11 @@ RUN if [ -f /ros2_ws/src/requirements.txt ]; then \
 # Build ROS2 package (only if it exists)
 # This allows the Dockerfile to work before the package is created
 RUN if [ -d /ros2_ws/src/wild_slam_ros2 ]; then \
-        source /opt/ros/jazzy/setup.bash && \
+        bash -c 'source /opt/ros/jazzy/setup.bash && \
         rosdep update && \
         rosdep install --from-paths src --ignore-src -r -y && \
         colcon build --symlink-install && \
-        chown -R 1000:1000 /ros2_ws/build /ros2_ws/install /ros2_ws/log; \
+        chown -R 1000:1000 /ros2_ws/build /ros2_ws/install /ros2_ws/log'; \
     else \
         echo "ROS2 package not found at /ros2_ws/src/wild_slam_ros2 - skipping build."; \
         echo "Create the package structure to enable building."; \
