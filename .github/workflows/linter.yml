@@ -1,0 +1,122 @@
+name: Lint and Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main, 'ros2-*']
+
+jobs:
+  lint:
+    name: Run Linters
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r Docker/requirements-dev.txt
+
+      - name: Run Black formatter check
+        id: black
+        run: |
+          black --check --diff .
+        continue-on-error: true
+
+      - name: Run isort check
+        id: isort
+        run: |
+          isort --check-only --diff .
+        continue-on-error: true
+
+      - name: Run flake8
+        id: flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+        continue-on-error: true
+
+      - name: Run pydocstyle
+        id: pydocstyle
+        run: |
+          pydocstyle . --convention=google --add-ignore=D100,D104 || true
+        continue-on-error: true
+
+      - name: Run mypy
+        id: mypy
+        run: |
+          mypy . --ignore-missing-imports || true
+        continue-on-error: true
+
+      - name: Run yamllint
+        id: yamllint
+        run: |
+          yamllint . -d '{extends: default, rules: {line-length: {max: 120}}}' || true
+        continue-on-error: true
+
+      - name: Comment PR with lint results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = {
+              black: '${{ steps.black.outcome }}',
+              isort: '${{ steps.isort.outcome }}',
+              flake8: '${{ steps.flake8.outcome }}',
+              pydocstyle: '${{ steps.pydocstyle.outcome }}',
+              mypy: '${{ steps.mypy.outcome }}',
+              yamllint: '${{ steps.yamllint.outcome }}',
+            };
+
+            const failed = Object.entries(results).filter(([_, status]) => status === 'failure');
+            const passed = Object.entries(results).filter(([_, status]) => status === 'success');
+
+            let comment = '## 🔍 Linting Results\n\n';
+
+            if (passed.length > 0) {
+              comment += '### ✅ Passed Checks\n';
+              passed.forEach(([tool, _]) => {
+                comment += `- ✅ ${tool}\n`;
+              });
+              comment += '\n';
+            }
+
+            if (failed.length > 0) {
+              comment += '### ❌ Failed Checks\n';
+              failed.forEach(([tool, _]) => {
+                comment += `- ❌ ${tool}\n`;
+              });
+              comment += '\n';
+              comment += '**Please fix the linting errors before merging.**\n\n';
+              comment += 'To fix formatting issues automatically, run:\n';
+              comment += '```bash\n';
+              comment += 'pre-commit run --all-files\n';
+              comment += '# or\n';
+              comment += 'black . && isort .\n';
+              comment += '```\n';
+            } else {
+              comment += '🎉 All linting checks passed!\n';
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

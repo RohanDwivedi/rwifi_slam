@@ -1,0 +1,78 @@
+FROM osrf/ros:jazzy-desktop
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ROS_DOMAIN_ID=42
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-venv \
+    build-essential \
+    cmake \
+    git \
+    gedit \
+    curl \
+    wget \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user with sudo privileges (handle existing UID 1000)
+RUN if id -u 1000 >/dev/null 2>&1; then \
+        EXISTING_USER=$(id -nu 1000); \
+        if [ "$EXISTING_USER" != "developer" ]; then \
+            usermod -l developer -d /home/developer -m "$EXISTING_USER" 2>/dev/null || true; \
+        fi; \
+    else \
+        useradd -m -s /bin/bash -u 1000 developer 2>/dev/null || true; \
+    fi && \
+    echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    mkdir -p /ros2_ws && \
+    chown -R 1000:1000 /ros2_ws
+
+# Initialize rosdep (handle both new initialization and existing state)
+RUN if ! rosdep init 2>/dev/null; then \
+        echo "rosdep already initialized or initialization failed"; \
+    fi
+
+# Set up ROS2 workspace
+WORKDIR /ros2_ws
+RUN mkdir -p src
+
+# Copy source directory (package may not exist yet)
+COPY --chown=1000:1000 src/ /ros2_ws/src/
+
+# Install Python dependencies (if requirements.txt exists)
+RUN if [ -f /ros2_ws/src/requirements.txt ]; then \
+        pip3 install --upgrade pip && \
+        pip3 install -r /ros2_ws/src/requirements.txt; \
+    fi
+
+# Build ROS2 package (only if it exists)
+# This allows the Dockerfile to work before the package is created
+RUN if [ -d /ros2_ws/src/wild_slam_ros2 ]; then \
+        source /opt/ros/jazzy/setup.bash && \
+        rosdep update && \
+        rosdep install --from-paths src --ignore-src -r -y && \
+        colcon build --symlink-install && \
+        chown -R 1000:1000 /ros2_ws/build /ros2_ws/install /ros2_ws/log; \
+    else \
+        echo "ROS2 package not found at /ros2_ws/src/wild_slam_ros2 - skipping build."; \
+        echo "Create the package structure to enable building."; \
+    fi
+
+# Copy entrypoint script
+COPY Docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+    chown 1000:1000 /entrypoint.sh
+
+# Ensure workspace directory exists and is owned by developer
+RUN mkdir -p /workspace && \
+    chown -R 1000:1000 /workspace
+
+# Switch to non-root user
+USER developer
+
+# Set up entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]
