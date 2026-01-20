@@ -1,0 +1,18 @@
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: Docker/dockerfile
+    image: wild-slam-dev:latest
+    pull_policy: build
+    container_name: wild-slam-dev
+    volumes:
+      - ..:/workspace:rw
+    working_dir: /workspace
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - DISPLAY=${DISPLAY:-:0}
+    network_mode: host
+    stdin_open: true
+    tty: true
+    command: bash

@@ -1,0 +1,171 @@
+name: Build and Release Docker Image
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_DEV: wild_slam
+  ROS2_VERSION: jazzy
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  pr-check:
+    name: PR Check and Release
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set lowercase repository owner
+        id: repo-owner
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check PR labels
+        id: check-labels
+        run: |
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
+          echo "Labels: $LABELS"
+
+          if echo "$LABELS" | grep -q "Release Major"; then
+            echo "release_type=major" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -q "Release"; then
+            echo "release_type=minor" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "release_type=none" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Pull latest GHCR image (if no release tag)
+        if: steps.check-labels.outputs.is_release == 'false'
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:latest || echo "No existing image found, will build new one"
+
+      - name: Update version (if release tag present)
+        if: steps.check-labels.outputs.is_release == 'true'
+        id: update-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE_XML="src/wild_slam_ros2/package.xml"
+          if [ ! -f "$PACKAGE_XML" ]; then
+            echo "Error: package.xml not found at $PACKAGE_XML"
+            exit 1
+          fi
+
+          CURRENT_VERSION=$(grep -oP '<version>\K[^<]+' "$PACKAGE_XML")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Parse version components using bash array
+          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR="${VERSION_PARTS[0]}"
+          MINOR="${VERSION_PARTS[1]}"
+          PATCH="${VERSION_PARTS[2]:-0}"
+
+          if [ "${{ steps.check-labels.outputs.release_type }}" == "major" ]; then
+            NEW_MAJOR=$((MAJOR + 1))
+            NEW_VERSION="$NEW_MAJOR.0.0"
+          else
+            NEW_MINOR=$((MINOR + 1))
+            NEW_VERSION="$MAJOR.$NEW_MINOR.0"
+          fi
+
+          echo "New version: $NEW_VERSION"
+
+          # Update version in package.xml
+          sed -i "s/<version>$CURRENT_VERSION<\/version>/<version>$NEW_VERSION<\/version>/" "$PACKAGE_XML"
+
+          # Extract MAJOR.MINOR for Docker tag using bash array
+          IFS='.' read -ra NEW_VERSION_PARTS <<< "$NEW_VERSION"
+          NEW_MAJOR="${NEW_VERSION_PARTS[0]}"
+          NEW_MINOR="${NEW_VERSION_PARTS[1]}"
+          DOCKER_TAG="${{ env.IMAGE_NAME_DEV }}-${{ env.ROS2_VERSION }}-$NEW_MAJOR.$NEW_MINOR"
+          echo "docker_tag=$DOCKER_TAG" >> $GITHUB_OUTPUT
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Docker/dockerfile
+          push: false
+          load: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install rosdep dependencies
+        run: |
+          docker run --rm --user root -v ${{ github.workspace }}:/workspace -w /workspace \
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }} \
+            bash -c "source /opt/ros/jazzy/setup.bash && \
+                     rosdep update && \
+                     rosdep install --from-paths src --ignore-src -r -y && \
+                     chown -R 1000:1000 /workspace"
+
+      - name: Run tests
+        run: |
+          docker run --rm --user 1000:1000 -v ${{ github.workspace }}:/workspace -w /workspace \
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }} \
+            bash -c "source /opt/ros/jazzy/setup.bash && \
+                     if [ -f /ros2_ws/install/setup.bash ]; then source /ros2_ws/install/setup.bash; fi && \
+                     cd /ros2_ws && \
+                     colcon test --packages-select wild_slam_ros2 --event-handlers console_direct+ && \
+                     colcon test-result --verbose"
+
+      - name: Push image to GHCR (if release tag)
+        if: steps.check-labels.outputs.is_release == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Docker/dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:${{ steps.update-version.outputs.docker_tag }}
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create Git tag (if release tag)
+        if: steps.check-labels.outputs.is_release == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.update-version.outputs.new_version }}';
+            const tagName = `v${version}`;
+            const tagMessage = `Release version ${version}`;
+            
+            // Create tag using GitHub API
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/${tagName}`,
+              sha: context.sha
+            });
+            
+            console.log(`Created tag ${tagName} for version ${version}`);
