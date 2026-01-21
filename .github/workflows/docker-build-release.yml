@@ -155,11 +155,7 @@ jobs:
           NEW_SHA=$(git rev-parse HEAD)
           echo "new_commit_sha=$NEW_SHA" >> $GITHUB_OUTPUT
 
-
       - name: Build Docker image
-        env:
-          REGISTRY_OWNER: ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}
-          IMAGE_NAME: ${{ env.IMAGE_NAME_DEV }}
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -167,7 +163,7 @@ jobs:
           push: false
           load: true
           tags: |
-            ${{ env.REGISTRY_OWNER }}/${{ env.IMAGE_NAME }}:test-${{ github.run_number }}
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -177,7 +173,7 @@ jobs:
           IMAGE_NAME: ${{ env.IMAGE_NAME_DEV }}
         run: |
           IMAGE="$REGISTRY_OWNER/$IMAGE_NAME:test-${{ github.run_number }}"
-          docker run --rm --user root \
+          docker run --rm \
             -v ${{ github.workspace }}:/workspace -w /workspace \
             "$IMAGE" \
             bash -c "source /opt/ros/jazzy/setup.bash && \
@@ -191,11 +187,10 @@ jobs:
           IMAGE_NAME: ${{ env.IMAGE_NAME_DEV }}
         run: |
           IMAGE="$REGISTRY_OWNER/$IMAGE_NAME:test-${{ github.run_number }}"
-          docker run --rm --user 1000:1000 \
+          docker run --rm \
             -v ${{ github.workspace }}:/workspace -w /workspace \
             "$IMAGE" \
-            bash -c "source /opt/ros/jazzy/setup.bash && \
-                     if [ -f /ros2_ws/install/setup.bash ]; then \
+            bash -c "if [ -f /ros2_ws/install/setup.bash ]; then \
                        source /ros2_ws/install/setup.bash; \
                      fi && \
                      cd /ros2_ws && \
@@ -204,17 +199,14 @@ jobs:
 
       - name: Push image to GHCR (if release tag)
         if: steps.check-labels.outputs.is_release == 'true'
-        env:
-          REGISTRY_OWNER: ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}
-          IMAGE_NAME: ${{ env.IMAGE_NAME_DEV }}
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Docker/dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY_OWNER }}/${{ env.IMAGE_NAME }}:${{ steps.update-version.outputs.docker_tag }}
-            ${{ env.REGISTRY_OWNER }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:latest
+            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:${{ steps.update-version.outputs.docker_tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
