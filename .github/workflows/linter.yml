@@ -55,19 +55,19 @@ jobs:
       - name: Run pydocstyle
         id: pydocstyle
         run: |
-          pydocstyle . --convention=google --add-ignore=D100,D104 || true
+          pydocstyle . --convention=google --add-ignore=D100,D104
         continue-on-error: true
 
       - name: Run mypy
         id: mypy
         run: |
-          mypy . --ignore-missing-imports || true
+          mypy . --ignore-missing-imports
         continue-on-error: true
 
       - name: Run yamllint
         id: yamllint
         run: |
-          yamllint . -d '{extends: default, rules: {line-length: {max: 120}}}' || true
+          yamllint . -d '{extends: default, rules: {line-length: {max: 120}}}'
         continue-on-error: true
 
       - name: Comment PR with lint results

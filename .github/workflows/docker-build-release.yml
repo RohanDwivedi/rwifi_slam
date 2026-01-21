@@ -99,6 +99,14 @@ jobs:
           # Update version in package.xml
           sed -i "s/<version>$CURRENT_VERSION<\/version>/<version>$NEW_VERSION<\/version>/" "$PACKAGE_XML"
 
+          # Update version in setup.py
+          SETUP_PY="src/wild_slam_ros2/setup.py"
+          if [ -f "$SETUP_PY" ]; then
+            sed -i "s/version=\"$CURRENT_VERSION\"/version=\"$NEW_VERSION\"/" "$SETUP_PY"
+            echo "Updated version in setup.py to $NEW_VERSION"
+          fi
+
+
           # Extract MAJOR.MINOR for Docker tag using bash array
           IFS='.' read -ra NEW_VERSION_PARTS <<< "$NEW_VERSION"
           NEW_MAJOR="${NEW_VERSION_PARTS[0]}"
@@ -106,6 +114,20 @@ jobs:
           DOCKER_TAG="${{ env.IMAGE_NAME_DEV }}-${{ env.ROS2_VERSION }}-$NEW_MAJOR.$NEW_MINOR"
           echo "docker_tag=$DOCKER_TAG" >> $GITHUB_OUTPUT
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit version updates (if release tag)
+        if: steps.check-labels.outputs.is_release == 'true'
+        id: commit-version
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add src/wild_slam_ros2/package.xml src/wild_slam_ros2/setup.py
+          git diff --staged --quiet || git commit -m "chore: bump version to ${{ steps.update-version.outputs.new_version }}"
+          git push
+          # Get the new commit SHA after push
+          NEW_SHA=$(git rev-parse HEAD)
+          echo "new_commit_sha=$NEW_SHA" >> $GITHUB_OUTPUT
+
 
       - name: Build Docker image
         uses: docker/build-push-action@v5
@@ -159,13 +181,17 @@ jobs:
             const version = '${{ steps.update-version.outputs.new_version }}';
             const tagName = `v${version}`;
             const tagMessage = `Release version ${version}`;
-            
+
             // Create tag using GitHub API
+            // Get the commit SHA after version update (use new_commit_sha if available, fallback to HEAD)
+            const newCommitSha = '${{ steps.commit-version.outputs.new_commit_sha }}' || context.sha;
+
+            // Create tag using GitHub API on the commit with updated version
             await github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: `refs/tags/${tagName}`,
-              sha: context.sha
+              sha: newCommitSha
             });
-            
-            console.log(`Created tag ${tagName} for version ${version}`);
+
+            console.log(`Created tag ${tagName} for version ${version} on commit ${newCommitSha}`);
