@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     sudo \
+    fonts-powerline \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user with sudo privileges (handle existing UID 1000)
@@ -61,6 +62,10 @@ RUN if [ -d /ros2_ws/src/wild_slam_ros2 ]; then \
         echo "Create the package structure to enable building."; \
     fi
 
+# Install Starship prompt
+RUN curl -sS https://starship.rs/install.sh | sh -s -- --yes && \
+    echo 'eval "$(starship init bash)"' >> /etc/bash.bashrc
+
 # Copy entrypoint script
 COPY Docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && \
@@ -72,6 +77,10 @@ RUN mkdir -p /workspace && \
 
 # Switch to non-root user
 USER developer
+
+# Set up Starship for developer user
+RUN mkdir -p ~/.config && \
+    echo 'eval "$(starship init bash)"' >> ~/.bashrc
 
 # Set up entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
