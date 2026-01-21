@@ -71,6 +71,12 @@ COPY Docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && \
     chown 1000:1000 /entrypoint.sh
 
+# Copy and install development dependencies
+COPY Docker/requirements-dev.txt /tmp/requirements-dev.txt
+RUN pip3 install --upgrade pip && \
+    pip3 install -r /tmp/requirements-dev.txt && \
+    rm /tmp/requirements-dev.txt
+
 # Ensure workspace directory exists and is owned by developer
 RUN mkdir -p /workspace && \
     chown -R 1000:1000 /workspace

@@ -1,3 +1,4 @@
+---
 name: Build and Release Docker Image
 
 on:
@@ -63,7 +64,8 @@ jobs:
       - name: Pull latest GHCR image (if no release tag)
         if: steps.check-labels.outputs.is_release == 'false'
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:latest || echo "No existing image found, will build new one"
+          docker pull ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:latest \
+            || echo "No existing image found, will build new one"
 
       - name: Update version (if release tag present)
         if: steps.check-labels.outputs.is_release == 'true'
@@ -99,12 +101,30 @@ jobs:
           # Update version in package.xml
           sed -i "s/<version>$CURRENT_VERSION<\/version>/<version>$NEW_VERSION<\/version>/" "$PACKAGE_XML"
 
-          # Update version in setup.py
+          # Update version in setup.py (if it exists)
           SETUP_PY="src/wild_slam_ros2/setup.py"
+          SETUP_PY_UPDATED=false
           if [ -f "$SETUP_PY" ]; then
-            sed -i "s/version=\"$CURRENT_VERSION\"/version=\"$NEW_VERSION\"/" "$SETUP_PY"
-            echo "Updated version in setup.py to $NEW_VERSION"
+            # Extract current version from setup.py to handle version mismatches
+            SETUP_CURRENT_VERSION=$(grep -oP 'version="\K[^"]+' "$SETUP_PY" || echo "")
+            if [ -n "$SETUP_CURRENT_VERSION" ]; then
+              # Replace any version in setup.py with the new version
+              sed -i "s/version=\"$SETUP_CURRENT_VERSION\"/version=\"$NEW_VERSION\"/" "$SETUP_PY"
+              # Verify the replacement actually happened
+              if grep -q "version=\"$NEW_VERSION\"" "$SETUP_PY"; then
+                echo "Updated version in setup.py from $SETUP_CURRENT_VERSION to $NEW_VERSION"
+                SETUP_PY_UPDATED=true
+              else
+                echo "Warning: Failed to update version in setup.py"
+                exit 1
+              fi
+            else
+              echo "Warning: Could not extract current version from setup.py"
+              exit 1
+            fi
           fi
+          # Export whether setup.py was updated for use in commit step
+          echo "setup_py_updated=$SETUP_PY_UPDATED" >> $GITHUB_OUTPUT
 
 
           # Extract MAJOR.MINOR for Docker tag using bash array
@@ -121,8 +141,14 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add src/wild_slam_ros2/package.xml src/wild_slam_ros2/setup.py
-          git diff --staged --quiet || git commit -m "chore: bump version to ${{ steps.update-version.outputs.new_version }}"
+          # Add package.xml (always required)
+          git add src/wild_slam_ros2/package.xml
+          # Only add setup.py if it exists and was updated
+          if [ "${{ steps.update-version.outputs.setup_py_updated }}" == "true" ]; then
+            git add src/wild_slam_ros2/setup.py
+          fi
+          git diff --staged --quiet \
+            || git commit -m "chore: bump version to ${{ steps.update-version.outputs.new_version }}"
           # Push to the PR branch (handle detached HEAD state)
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
           # Get the new commit SHA after push
@@ -131,6 +157,9 @@ jobs:
 
 
       - name: Build Docker image
+        env:
+          REGISTRY_OWNER: ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME_DEV }}
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -138,39 +167,54 @@ jobs:
           push: false
           load: true
           tags: |
-            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }}
+            ${{ env.REGISTRY_OWNER }}/${{ env.IMAGE_NAME }}:test-${{ github.run_number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Install rosdep dependencies
+        env:
+          REGISTRY_OWNER: ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME_DEV }}
         run: |
-          docker run --rm --user root -v ${{ github.workspace }}:/workspace -w /workspace \
-            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }} \
+          IMAGE="$REGISTRY_OWNER/$IMAGE_NAME:test-${{ github.run_number }}"
+          docker run --rm --user root \
+            -v ${{ github.workspace }}:/workspace -w /workspace \
+            "$IMAGE" \
             bash -c "source /opt/ros/jazzy/setup.bash && \
                      rosdep update && \
                      rosdep install --from-paths src --ignore-src -r -y && \
                      chown -R 1000:1000 /workspace"
 
       - name: Run tests
+        env:
+          REGISTRY_OWNER: ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME_DEV }}
         run: |
-          docker run --rm --user 1000:1000 -v ${{ github.workspace }}:/workspace -w /workspace \
-            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:test-${{ github.run_number }} \
+          IMAGE="$REGISTRY_OWNER/$IMAGE_NAME:test-${{ github.run_number }}"
+          docker run --rm --user 1000:1000 \
+            -v ${{ github.workspace }}:/workspace -w /workspace \
+            "$IMAGE" \
             bash -c "source /opt/ros/jazzy/setup.bash && \
-                     if [ -f /ros2_ws/install/setup.bash ]; then source /ros2_ws/install/setup.bash; fi && \
+                     if [ -f /ros2_ws/install/setup.bash ]; then \
+                       source /ros2_ws/install/setup.bash; \
+                     fi && \
                      cd /ros2_ws && \
                      colcon test --packages-select wild_slam_ros2 --event-handlers console_direct+ && \
                      colcon test-result --verbose"
 
       - name: Push image to GHCR (if release tag)
         if: steps.check-labels.outputs.is_release == 'true'
+        env:
+          REGISTRY_OWNER: ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME_DEV }}
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Docker/dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:${{ steps.update-version.outputs.docker_tag }}
-            ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}/${{ env.IMAGE_NAME_DEV }}:latest
+            ${{ env.REGISTRY_OWNER }}/${{ env.IMAGE_NAME }}:${{ steps.update-version.outputs.docker_tag }}
+            ${{ env.REGISTRY_OWNER }}/${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
