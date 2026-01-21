@@ -123,7 +123,8 @@ jobs:
           git config --local user.name "GitHub Action"
           git add src/wild_slam_ros2/package.xml src/wild_slam_ros2/setup.py
           git diff --staged --quiet || git commit -m "chore: bump version to ${{ steps.update-version.outputs.new_version }}"
-          git push
+          # Push to the PR branch (handle detached HEAD state)
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
           # Get the new commit SHA after push
           NEW_SHA=$(git rev-parse HEAD)
           echo "new_commit_sha=$NEW_SHA" >> $GITHUB_OUTPUT
