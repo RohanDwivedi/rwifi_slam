@@ -44,8 +44,8 @@
             }
         }
     },
-    "postCreateCommand": "source /opt/ros/jazzy/setup.bash && (source /ros2_ws/install/setup.bash 2>/dev/null || echo 'ROS2 workspace not yet built') && echo 'ROS2 environment ready'",
-    "postStartCommand": "source /opt/ros/jazzy/setup.bash && (source /ros2_ws/install/setup.bash 2>/dev/null || true)",
+    "postCreateCommand": "bash -c 'source /opt/ros/jazzy/setup.bash && (source /ros2_ws/install/setup.bash 2>/dev/null || echo \"ROS2 workspace not yet built\") && echo \"ROS2 environment ready\"'",
+    "postStartCommand": "bash -c 'source /opt/ros/jazzy/setup.bash && (source /ros2_ws/install/setup.bash 2>/dev/null || true)'",
     "remoteUser": "developer",
     "mounts": [
         "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
