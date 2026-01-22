@@ -8,6 +8,7 @@ ENV ROS_DOMAIN_ID=42
 RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-venv \
+    python3-dev \
     build-essential \
     cmake \
     git \
@@ -73,8 +74,8 @@ RUN chmod +x /entrypoint.sh && \
 
 # Copy and install development dependencies (system-wide)
 COPY Docker/requirements-dev.txt /tmp/requirements-dev.txt
-RUN pip3 install --upgrade pip && \
-    pip3 install -r /tmp/requirements-dev.txt && \
+RUN pip3 install --upgrade pip --no-cache-dir && \
+    pip3 install --no-cache-dir -r /tmp/requirements-dev.txt && \
     chmod 644 /tmp/requirements-dev.txt
 
 # Ensure workspace directory exists and is owned by developer
@@ -85,8 +86,8 @@ RUN mkdir -p /workspace && \
 USER developer
 
 # Install development dependencies for developer user and ensure PATH includes ~/.local/bin
-RUN pip3 install --user --upgrade pip && \
-    pip3 install --user -r /tmp/requirements-dev.txt && \
+RUN pip3 install --user --upgrade pip --no-cache-dir && \
+    pip3 install --user --no-cache-dir -r /tmp/requirements-dev.txt && \
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 
 # Set up Starship for developer user

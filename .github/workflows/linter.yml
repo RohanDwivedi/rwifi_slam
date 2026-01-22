@@ -108,8 +108,9 @@ jobs:
               comment += '**Please fix the linting errors before merging.**\n\n';
               comment += 'To fix formatting issues automatically, run:\n';
               comment += '```bash\n';
-              comment += 'black . && isort .\n';
-              comment += 'yamllint .\n';
+              comment += 'python3 -m black . && python3 -m isort .\n\n';
+              comment += '# Fix YAML linting\n';
+              comment += 'python3 -m yamllint .\n';
               comment += '```\n';
             } else {
               comment += '🎉 All linting checks passed!\n';
