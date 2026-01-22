@@ -1,3 +1,4 @@
+---
 services:
   dev:
     build:
@@ -8,6 +9,7 @@ services:
     container_name: wild-slam-dev
     volumes:
       - ..:/workspace:rw
+      - ~/.ssh:/home/developer/.ssh:rw
     working_dir: /workspace
     environment:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}

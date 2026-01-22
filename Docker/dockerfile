@@ -8,31 +8,40 @@ ENV ROS_DOMAIN_ID=42
 RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-venv \
+    python3-dev \
     build-essential \
     cmake \
     git \
+    openssh-client \
     gedit \
     curl \
     wget \
     sudo \
+    fonts-powerline \
+    libffi-dev \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user with sudo privileges (handle existing UID 1000)
 RUN if id -u 1000 >/dev/null 2>&1; then \
         EXISTING_USER=$(id -nu 1000); \
         if [ "$EXISTING_USER" != "developer" ]; then \
-            usermod -l developer -d /home/developer -m "$EXISTING_USER" 2>/dev/null || true; \
+            usermod -l developer -d /home/developer -m "$EXISTING_USER" 2>/dev/null || \
+            { echo "Warning: Failed to rename existing user $EXISTING_USER to developer" >&2; exit 1; }; \
         fi; \
     else \
-        useradd -m -s /bin/bash -u 1000 developer 2>/dev/null || true; \
+        useradd -m -s /bin/bash -u 1000 developer 2>/dev/null || \
+        { echo "Error: Failed to create developer user" >&2; exit 1; }; \
     fi && \
     echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
-    mkdir -p /ros2_ws && \
-    chown -R 1000:1000 /ros2_ws
+    mkdir -p /ros2_ws /workspace && \
+    chown -R 1000:1000 /ros2_ws /workspace
 
 # Initialize rosdep (handle both new initialization and existing state)
 RUN if ! rosdep init 2>/dev/null; then \
-        echo "rosdep already initialized or initialization failed"; \
+        echo "Info: rosdep already initialized or initialization skipped" >&2; \
+    else \
+        echo "Info: rosdep initialized successfully" >&2; \
     fi
 
 # Set up ROS2 workspace
@@ -43,9 +52,9 @@ RUN mkdir -p src
 COPY --chown=1000:1000 src/ /ros2_ws/src/
 
 # Install Python dependencies (if requirements.txt exists)
+# Note: pip upgrade removed here - will be done for developer user only
 RUN if [ -f /ros2_ws/src/requirements.txt ]; then \
-        pip3 install --upgrade pip && \
-        pip3 install -r /ros2_ws/src/requirements.txt; \
+        python3 -m pip install --break-system-packages -v -r /ros2_ws/src/requirements.txt; \
     fi
 
 # Build ROS2 package (only if it exists)
@@ -61,18 +70,25 @@ RUN if [ -d /ros2_ws/src/wild_slam_ros2 ]; then \
         echo "Create the package structure to enable building."; \
     fi
 
-# Copy entrypoint script
+# Copy entrypoint script and development dependencies file
 COPY Docker/entrypoint.sh /entrypoint.sh
+COPY Docker/requirements-dev.txt /tmp/requirements-dev.txt
 RUN chmod +x /entrypoint.sh && \
-    chown 1000:1000 /entrypoint.sh
-
-# Ensure workspace directory exists and is owned by developer
-RUN mkdir -p /workspace && \
-    chown -R 1000:1000 /workspace
+    chmod 644 /tmp/requirements-dev.txt && \
+    chown 1000:1000 /entrypoint.sh /tmp/requirements-dev.txt
 
 # Switch to non-root user
 USER developer
 
+# Install Starship prompt, upgrade pip, install dev dependencies, and configure environment
+# Combined into single layer for better caching
+RUN curl -sS https://starship.rs/install.sh | sh -s -- --yes && \
+    python3 -m pip install --user --upgrade pip --no-cache-dir --break-system-packages || true && \
+    python3 -m pip install --user --no-cache-dir --break-system-packages -v -r /tmp/requirements-dev.txt && \
+    mkdir -p ~/.config && \
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && \
+    echo 'eval "$(starship init bash)"' >> ~/.bashrc
+
 # Set up entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 CMD ["bash"]
