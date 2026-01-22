@@ -27,6 +27,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
           persist-credentials: true
 
@@ -179,7 +180,7 @@ jobs:
             bash -c "source /opt/ros/jazzy/setup.bash && \
                      rosdep update && \
                      rosdep install --from-paths src --ignore-src -r -y && \
-                     chown -R 1000:1000 /workspace"
+                     sudo chown -R 1000:1000 /workspace"
 
       - name: Run tests
         env:
