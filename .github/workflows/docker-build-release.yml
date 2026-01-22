@@ -1,16 +1,27 @@
 ---
 name: Build and Release Docker Image
 
+# IMPORTANT: Branch Protection Configuration Required
+# To ensure merges are blocked when this workflow is running or fails:
+# 1. Go to Settings > Branches > Branch protection rules for 'main'
+# 2. Enable "Require status checks to pass before merging"
+# 3. Add required status checks (these must match the job names exactly):
+#    - "PR Check and Release" (this workflow's job name)
+#    - "Run Linters" (from linter.yml workflow's job name)
+# 4. Enable "Require branches to be up to date before merging"
+# This ensures:
+#   - Merges are blocked while workflows are running
+#   - Merges are blocked if any workflow fails
+#   - Status checks are always visible (no "no CI status" message)
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
     branches:
       - main
 
-# Skip workflow if the commit was made by the workflow itself (to prevent infinite loops)
-# and to keep status checks visible on the PR
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 env:
@@ -33,21 +44,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.sha || github.event.pull_request.head.ref }}
           fetch-depth: 0
           persist-credentials: true
 
       - name: Check if commit should be skipped
+        id: check-skip
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%B)
           if echo "$COMMIT_MSG" | grep -qE "(chore: bump version|\[skip ci\]|\[ci skip\]|\*\*\*NO_CI\*\*\*|\[no ci\])"; then
             echo "⏭️ Commit was made by workflow itself or contains skip pattern"
-            echo "This ensures the original workflow's status check remains visible on the PR"
             echo "should_skip=true" >> $GITHUB_OUTPUT
           else
             echo "should_skip=false" >> $GITHUB_OUTPUT
           fi
-        id: check-skip
 
       - name: Set lowercase repository owner
         id: repo-owner
