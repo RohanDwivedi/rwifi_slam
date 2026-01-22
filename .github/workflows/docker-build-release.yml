@@ -7,6 +7,12 @@ on:
     branches:
       - main
 
+# Skip workflow if the commit was made by the workflow itself (to prevent infinite loops)
+# and to keep status checks visible on the PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME_DEV: wild_slam
@@ -31,6 +37,18 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - name: Check if commit should be skipped
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if echo "$COMMIT_MSG" | grep -qE "(chore: bump version|\[skip ci\]|\[ci skip\]|\*\*\*NO_CI\*\*\*|\[no ci\])"; then
+            echo "⏭️ Commit was made by workflow itself or contains skip pattern"
+            echo "This ensures the original workflow's status check remains visible on the PR"
+            echo "should_skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_skip=false" >> $GITHUB_OUTPUT
+          fi
+        id: check-skip
+
       - name: Set lowercase repository owner
         id: repo-owner
         run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
@@ -40,9 +58,11 @@ jobs:
         run: echo "path=${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
+        if: steps.check-skip.outputs.should_skip != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
+        if: steps.check-skip.outputs.should_skip != 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -73,7 +93,7 @@ jobs:
             || echo "No existing image found, will build new one"
 
       - name: Update version (if release tag present)
-        if: steps.check-labels.outputs.is_release == 'true'
+        if: steps.check-labels.outputs.is_release == 'true' && steps.check-skip.outputs.should_skip != 'true'
         id: update-version
         shell: bash
         run: |
@@ -141,7 +161,7 @@ jobs:
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
       - name: Commit version updates (if release tag)
-        if: steps.check-labels.outputs.is_release == 'true'
+        if: steps.check-labels.outputs.is_release == 'true' && steps.check-skip.outputs.should_skip != 'true'
         id: commit-version
         run: |
           git config --local user.email "action@github.com"
@@ -153,7 +173,7 @@ jobs:
             git add src/wild_slam_ros2/setup.py
           fi
           git diff --staged --quiet \
-            || git commit -m "chore: bump version to ${{ steps.update-version.outputs.new_version }}"
+            || git commit -m "chore: bump version to ${{ steps.update-version.outputs.new_version }} [skip ci]"
           # Push to the PR branch (handle detached HEAD state)
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
           # Get the new commit SHA after push
@@ -161,6 +181,7 @@ jobs:
           echo "new_commit_sha=$NEW_SHA" >> $GITHUB_OUTPUT
 
       - name: Build Docker image
+        if: steps.check-skip.outputs.should_skip != 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -173,6 +194,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Install rosdep dependencies
+        if: steps.check-skip.outputs.should_skip != 'true'
         env:
           REGISTRY_OWNER: ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}
           IMAGE_NAME: ${{ env.IMAGE_NAME_DEV }}
@@ -187,6 +209,7 @@ jobs:
                      sudo chown -R 1000:1000 /workspace"
 
       - name: Run tests
+        if: steps.check-skip.outputs.should_skip != 'true'
         env:
           REGISTRY_OWNER: ${{ env.REGISTRY }}/${{ steps.repo-owner.outputs.owner }}
           IMAGE_NAME: ${{ env.IMAGE_NAME_DEV }}
@@ -204,7 +227,7 @@ jobs:
                      colcon test-result --verbose"
 
       - name: Push image to GHCR (if release tag)
-        if: steps.check-labels.outputs.is_release == 'true'
+        if: steps.check-labels.outputs.is_release == 'true' && steps.check-skip.outputs.should_skip != 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -217,7 +240,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Create Git tag (if release tag)
-        if: steps.check-labels.outputs.is_release == 'true'
+        if: steps.check-labels.outputs.is_release == 'true' && steps.check-skip.outputs.should_skip != 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -225,16 +248,50 @@ jobs:
             const tagName = `v${version}`;
             const tagMessage = `Release version ${version}`;
 
-            // Create tag using GitHub API
             // Get the commit SHA after version update (use new_commit_sha if available, fallback to HEAD)
             const newCommitSha = '${{ steps.commit-version.outputs.new_commit_sha }}' || context.sha;
 
-            // Create tag using GitHub API on the commit with updated version
-            await github.rest.git.createRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: `refs/tags/${tagName}`,
-              sha: newCommitSha
-            });
+            try {
+              // Check if tag already exists
+              const existingTag = await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `tags/${tagName}`
+              });
 
-            console.log(`Created tag ${tagName} for version ${version} on commit ${newCommitSha}`);
+              // Tag exists, check if it points to the same commit
+              if (existingTag.data.object.sha === newCommitSha) {
+                console.log(`Tag ${tagName} already exists and points to the correct commit ${newCommitSha}. Skipping creation.`);
+              } else {
+                // Tag exists but points to different commit, delete and recreate
+                console.log(`Tag ${tagName} exists but points to different commit. Updating tag.`);
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/${tagName}`
+                });
+
+                // Create new tag
+                await github.rest.git.createRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `refs/tags/${tagName}`,
+                  sha: newCommitSha
+                });
+                console.log(`Updated tag ${tagName} for version ${version} on commit ${newCommitSha}`);
+              }
+            } catch (error) {
+              // Tag doesn't exist (404), create it
+              if (error.status === 404) {
+                await github.rest.git.createRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `refs/tags/${tagName}`,
+                  sha: newCommitSha
+                });
+                console.log(`Created tag ${tagName} for version ${version} on commit ${newCommitSha}`);
+              } else {
+                // Re-throw unexpected errors
+                throw error;
+              }
+            }
