@@ -195,7 +195,8 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace -w /workspace \
             "$IMAGE" \
-            bash -c "if [ -f /ros2_ws/install/setup.bash ]; then \
+            bash -c "source /opt/ros/jazzy/setup.bash && \
+                     if [ -f /ros2_ws/install/setup.bash ]; then \
                        source /ros2_ws/install/setup.bash; \
                      fi && \
                      cd /ros2_ws && \
