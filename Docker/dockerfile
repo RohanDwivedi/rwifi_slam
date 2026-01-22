@@ -71,11 +71,11 @@ COPY Docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && \
     chown 1000:1000 /entrypoint.sh
 
-# Copy and install development dependencies
+# Copy and install development dependencies (system-wide)
 COPY Docker/requirements-dev.txt /tmp/requirements-dev.txt
 RUN pip3 install --upgrade pip && \
     pip3 install -r /tmp/requirements-dev.txt && \
-    rm /tmp/requirements-dev.txt
+    chmod 644 /tmp/requirements-dev.txt
 
 # Ensure workspace directory exists and is owned by developer
 RUN mkdir -p /workspace && \
@@ -83,6 +83,11 @@ RUN mkdir -p /workspace && \
 
 # Switch to non-root user
 USER developer
+
+# Install development dependencies for developer user and ensure PATH includes ~/.local/bin
+RUN pip3 install --user --upgrade pip && \
+    pip3 install --user -r /tmp/requirements-dev.txt && \
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 
 # Set up Starship for developer user
 RUN mkdir -p ~/.config && \
