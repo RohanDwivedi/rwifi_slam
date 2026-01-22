@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     git \
+    openssh-client \
     gedit \
     curl \
     wget \
@@ -95,5 +96,5 @@ RUN mkdir -p ~/.config && \
     echo 'eval "$(starship init bash)"' >> ~/.bashrc
 
 # Set up entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 CMD ["bash"]
