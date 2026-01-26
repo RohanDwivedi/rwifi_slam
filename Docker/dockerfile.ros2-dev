@@ -3,23 +3,20 @@ FROM osrf/ros:jazzy-desktop
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DOMAIN_ID=42
+ENV RMW_IMPLEMENTATION=rmw_zenoh_cpp
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3-pip \
-    python3-venv \
     python3-dev \
     build-essential \
     cmake \
     git \
-    openssh-client \
-    gedit \
     curl \
-    wget \
-    sudo \
     fonts-powerline \
     libffi-dev \
     libssl-dev \
+    ros-jazzy-rmw-zenoh-cpp \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user with sudo privileges (handle existing UID 1000)
@@ -71,7 +68,7 @@ RUN if [ -d /ros2_ws/src/wild_slam_ros2 ]; then \
     fi
 
 # Copy entrypoint script and development dependencies file
-COPY Docker/entrypoint.sh /entrypoint.sh
+COPY Docker/entrypoint-ros2-dev.sh /entrypoint.sh
 COPY Docker/requirements-dev.txt /tmp/requirements-dev.txt
 RUN chmod +x /entrypoint.sh && \
     chmod 644 /tmp/requirements-dev.txt && \

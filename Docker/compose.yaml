@@ -1,20 +1,43 @@
 ---
 services:
   dev:
+    image: ghcr.io/${GHCR_OWNER:-rohandwivedi}/wild_slam:latest
+    pull_policy:  missing
     build:
-      context: ..
-      dockerfile: Docker/dockerfile
-    image: wild-slam-dev:latest
-    pull_policy: build
+      context: ../
+      dockerfile: Docker/dockerfile.ros2-dev
     container_name: wild-slam-dev
     volumes:
       - ..:/workspace:rw
-      - ~/.ssh:/home/developer/.ssh:rw
     working_dir: /workspace
     environment:
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
       - DISPLAY=${DISPLAY:-:0}
     network_mode: host
     stdin_open: true
     tty: true
     command: bash
+
+  isaac-sim:
+    image: ghcr.io/${REGISTRY_OWNER:-rohandwivedi}/isaac-sim-6.0:latest
+    user: "1000:1000"
+    pull_policy:  missing
+    build:
+      context: ../
+      dockerfile: Docker/dockerfile.isaac-sim-6.0
+    container_name: isaac-sim
+    privileged: true
+    volumes:
+      - ..:/workspace:rw
+      - /home/dev/dev/Docker/isaac-sim-6.0/IsaacSim/:/home/dev/dev/Docker/isaac-sim-6.0/IsaacSim/:rw
+      - /home/dev/.cache:/home/dev/.cache:rw
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+      - DISPLAY=${DISPLAY:-:0}
+    runtime: nvidia
+    network_mode: host
+    stdin_open: true
+    tty: true
+    entrypoint: /entrypoint-isaac-sim.sh

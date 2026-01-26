@@ -1,0 +1,137 @@
+---
+name: Build and Release Isaac Sim 6.0
+
+# This workflow builds Isaac Sim 6.0 from source and publishes to GHCR
+# It only runs when the "Release Sim" label is present on a PR
+# This ensures we only build and release when explicitly requested
+# Note: This workflow does NOT update version numbers
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    branches:
+      - main
+
+concurrency:
+  group: build-isaac-sim-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: isaac-sim-6.0
+  ISAAC_SIM_VERSION: develop
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build Isaac Sim 6.0
+    runs-on: ubuntu-latest
+    # This job requires a self-hosted runner with GPU support or GitHub-hosted runners
+    # For GPU builds, you'll need to use self-hosted runners with NVIDIA GPUs
+    # For now, we'll build on regular runners (build may be slower or require adjustments)
+    if: |
+      github.event_name == 'pull_request' &&
+      (contains(github.event.pull_request.labels.*.name, 'Release Sim') ||
+       contains(github.event.label.name, 'Release Sim'))
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Check for Release Sim label
+        id: check-label
+        run: |
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
+          echo "Labels: $LABELS"
+
+          if echo "$LABELS" | grep -q "Release Sim"; then
+            echo "✅ 'Release Sim' label found - proceeding with build"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "⏭️ 'Release Sim' label not found - skipping build"
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check-label.outputs.should_build == 'true'
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+
+      - name: Log in to GitHub Container Registry
+        if: steps.check-label.outputs.should_build == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set registry owner path
+        if: steps.check-label.outputs.should_build == 'true'
+        id: reg-owner
+        run: echo "path=${{ env.REGISTRY }}/${{ github.repository_owner }}" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata for Docker
+        if: steps.check-label.outputs.should_build == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.reg-owner.outputs.path }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ env.ISAAC_SIM_VERSION }}
+            type=sha,prefix=pr${{ github.event.pull_request.number }}-
+            type=ref,event=pr
+
+      - name: Build Isaac Sim 6.0 Docker image
+        if: steps.check-label.outputs.should_build == 'true'
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Docker/dockerfile.isaac-sim-6.0
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ISAAC_SIM_VERSION=${{ env.ISAAC_SIM_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          # Note: This build is very resource-intensive and may take 4-8+ hours
+          # Consider using self-hosted runners with more resources for faster builds
+
+      - name: Image digest
+        if: steps.check-label.outputs.should_build == 'true'
+        id: image-digest
+        run: echo "digest=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## Isaac Sim 6.0 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.check-label.outputs.should_build }}" == "true" ]; then
+            echo "- **Version/Branch**: \`${{ env.ISAAC_SIM_VERSION }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Image**: \`${{ steps.reg-owner.outputs.path }}/${{ env.IMAGE_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Tags**: \`${{ steps.meta.outputs.tags }}\`" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ job.status }}" == "success" ]; then
+              echo "- **Status**: ✅ Build completed successfully" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Status**: ❌ Build failed" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- **Status**: ⏭️ Skipped - 'Release Sim' label not present" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "To trigger the build, add the 'Release Sim' label to this PR." >> $GITHUB_STEP_SUMMARY
+          fi

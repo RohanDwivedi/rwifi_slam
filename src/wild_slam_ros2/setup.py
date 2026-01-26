@@ -12,10 +12,10 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="developer",
-    maintainer_email="developer@todo.todo",
-    description="TODO: Package description",
-    license="TODO: License declaration",
+    maintainer="Rohan Dwivedi",
+    maintainer_email="myemail.rohan@gmail.com",
+    description="WiLD-SLAM ROS2 package for Simultaneous Localization and Mapping",
+    license="Apache 2.0",
     extras_require={
         "test": [
             "pytest",
