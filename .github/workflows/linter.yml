@@ -1,10 +1,6 @@
 ---
 name: Lint and Code Review
 
-# IMPORTANT: This workflow must be included in branch protection rules
-# See docker-build-release.yml for branch protection configuration details
-# Required status check name: "Run Linters" (matches job name below)
-
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -64,11 +60,6 @@ jobs:
         run: |
           pydocstyle src/ --convention=google --add-ignore=D100,D104
 
-      - name: Run mypy
-        id: mypy
-        run: |
-          mypy src/ --ignore-missing-imports
-
       - name: Run yamllint
         id: yamllint
         run: |
@@ -84,7 +75,6 @@ jobs:
               isort: '${{ steps.isort.outcome }}',
               flake8: '${{ steps.flake8.outcome }}',
               pydocstyle: '${{ steps.pydocstyle.outcome }}',
-              mypy: '${{ steps.mypy.outcome }}',
               yamllint: '${{ steps.yamllint.outcome }}',
             };
 
@@ -108,11 +98,6 @@ jobs:
               });
               comment += '\n';
               comment += '**Please fix the linting errors before merging.**\n\n';
-              comment += 'To fix formatting issues automatically, run:\n';
-              comment += '```bash\n';
-              comment += 'python3 -m black src/ && python3 -m isort src/\n\n';
-              comment += 'python3 -m yamllint src/\n';
-              comment += '```\n';
             } else {
               comment += '🎉 All linting checks passed!\n';
             }

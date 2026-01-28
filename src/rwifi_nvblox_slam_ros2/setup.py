@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = "wild_slam_ros2"
+package_name = "rwifi_nvblox_slam_ros2"
 
 setup(
     name=package_name,
@@ -12,10 +12,10 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="developer",
-    maintainer_email="developer@todo.todo",
-    description="TODO: Package description",
-    license="TODO: License declaration",
+    maintainer="Rohan Dwivedi",
+    maintainer_email="myemail.rohan@gmail.com",
+    description="WiFi localisation, nvblox mapping for Robots in the ambient environment",
+    license="Apache 2.0",
     extras_require={
         "test": [
             "pytest",

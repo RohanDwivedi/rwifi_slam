@@ -1,0 +1,26 @@
+FROM osrf/ros:jazzy-desktop
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python-is-python3 \
+    python3-pip \
+    ros-jazzy-rmw-zenoh-cpp \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /ros2_ws
+WORKDIR /ros2_ws
+
+COPY Docker/entrypoint.sh /ros2_ws/entrypoint.sh
+COPY Docker/requirements-dev.txt /ros2_ws/requirements-dev.txt
+COPY Docker/pyproject.toml /ros2_ws/pyproject.toml
+COPY Docker/.yamllint /ros2_ws/.yamllint
+
+RUN chmod +x /ros2_ws/entrypoint.sh \
+  && chown 1000:1000 /ros2_ws/entrypoint.sh /ros2_ws/requirements-dev.txt /ros2_ws/pyproject.toml /ros2_ws/.yamllint
+
+RUN python3 -m pip install --break-system-packages -r /ros2_ws/requirements-dev.txt
+
+ENTRYPOINT ["/bin/bash", "/ros2_ws/entrypoint.sh"]
+CMD ["bash"]
+
