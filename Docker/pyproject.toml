@@ -13,6 +13,7 @@ extend-exclude = '''
   | \.venv
   | build
   | dist
+  | isaac-sim-6.0
 )/
 '''
 
@@ -24,4 +25,14 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
-skip_glob = ["*/build/*", "*/dist/*", "*/.venv/*", "*/__pycache__/*"]
+skip_glob = [
+  "*/build/*",
+  "*/dist/*",
+  "*/.venv/*",
+  "*/__pycache__/*",
+  "*/isaac-sim-6.0/*"
+]
+
+[tool.pydocstyle]
+match-dir = '^(?!.*(\.eggs|\.git|\.hg|\.mypy_cache|\.tox|\.venv|build|dist|isaac-sim-6\.0|__pycache__)).*'
+

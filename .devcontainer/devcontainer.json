@@ -1,8 +1,9 @@
 {
-    "name": "WiLD-SLAM ROS2 Development",
+    "name": "rwifi_nvblox_slam_ros2 Dev Container",
     "dockerComposeFile": "../Docker/compose.yaml",
     "service": "dev",
-    "workspaceFolder": "/workspace",
+    "runServices": ["dev"],
+    "workspaceFolder": "/ros2_ws",
     "features": {},
     "customizations": {
         "vscode": {
@@ -44,10 +45,4 @@
             }
         }
     },
-    "postCreateCommand": "bash -c 'source /opt/ros/jazzy/setup.bash && (source /ros2_ws/install/setup.bash 2>/dev/null || echo \"ROS2 workspace not yet built\") && echo \"ROS2 environment ready\"'",
-    "postStartCommand": "bash -c 'source /opt/ros/jazzy/setup.bash && (source /ros2_ws/install/setup.bash 2>/dev/null || true)'",
-    "remoteUser": "developer",
-    "mounts": [
-        "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
-    ]
 }

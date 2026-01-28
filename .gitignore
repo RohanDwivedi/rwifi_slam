@@ -2,7 +2,10 @@
 build/
 install/
 log/
-
+.buildx-cache/
+.cache/
+.isaac-sim-cache/
+src/simulation/isaac_sim_dev/isaac-sim-6.0/
 # Python
 __pycache__/
 

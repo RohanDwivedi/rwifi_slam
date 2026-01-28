@@ -1,20 +1,63 @@
----
 services:
   dev:
+    image: rwifi_nvblox_slam_dev
+    user: "1000:1000"
+    pull_policy: missing
     build:
       context: ..
-      dockerfile: Docker/dockerfile
-    image: wild-slam-dev:latest
-    pull_policy: build
-    container_name: wild-slam-dev
-    volumes:
-      - ..:/workspace:rw
-      - ~/.ssh:/home/developer/.ssh:rw
-    working_dir: /workspace
+      dockerfile: Docker/dockerfile.dev
+    container_name: rwifi_nvblox_slam_dev
+    privileged: true
     environment:
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
-      - DISPLAY=${DISPLAY:-:0}
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      DISPLAY: ${DISPLAY}
+      QT_X11_NO_MITSHM: "1"
+      XAUTHORITY: /tmp/.Xauthority
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
     network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ../src:/ros2_ws/src:rw
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/.Xauthority:/tmp/.Xauthority:ro
+    stdin_open: true
+    tty: true
+    command: bash
+
+  release:
+    image: ghcr.io/${GHCR_OWNER:-rohandwivedi}/${IMAGE_NAME:-rwifi_nvblox_slam_release}:${RELEASE_TAG:-latest}
+    user: "1000:1000"
+    pull_policy: build
+    build:
+      context: ..
+      dockerfile: Docker/dockerfile.rel
+    container_name: rwifi_nvblox_slam_release
+    privileged: true
+    environment:
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      DISPLAY: ${DISPLAY}
+      QT_X11_NO_MITSHM: "1"
+      XAUTHORITY: /tmp/.Xauthority
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+    network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/.Xauthority:/tmp/.Xauthority:ro
     stdin_open: true
     tty: true
     command: bash

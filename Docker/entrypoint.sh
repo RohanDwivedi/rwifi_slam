@@ -1,35 +1,43 @@
 #!/bin/bash
 set -e
 
-# Set up SSH for GitHub access
-if [ -d ~/.ssh ]; then
-    # Ensure proper permissions for SSH directory and keys
-    chmod 700 ~/.ssh 2>/dev/null || true
-    find ~/.ssh -type f -name "id_*" ! -name "*.pub" -exec chmod 600 {} \; 2>/dev/null || true
-    find ~/.ssh -type f -name "*.pub" -exec chmod 644 {} \; 2>/dev/null || true
-    
-    # Add GitHub to known_hosts if not already present
-    if [ ! -f ~/.ssh/known_hosts ] || ! grep -q "github.com" ~/.ssh/known_hosts 2>/dev/null; then
-        mkdir -p ~/.ssh
-        ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null || true
-        chmod 644 ~/.ssh/known_hosts 2>/dev/null || true
+if [ -d /ros2_ws/src ] && [ "$(ls -A /ros2_ws/src 2>/dev/null)" ]; then
+    echo "Building ROS2 workspace..."
+    cd /ros2_ws
+
+    source /opt/ros/jazzy/setup.bash
+
+    if [ -f /ros2_ws/src/rwifi_nvblox_slam_ros2/requirements.txt ]; then
+        echo "Installing Python dependencies..."
+        python3 -m pip install --break-system-packages -q -r /ros2_ws/src/rwifi_nvblox_slam_ros2/requirements.txt || true
+    fi
+
+    echo "Installing ROS2 dependencies via rosdep..."
+    rosdep update >/dev/null 2>&1 || true
+    rosdep install --from-paths src --ignore-src -r -y || true
+
+    echo "Building ROS2 packages with colcon..."
+    colcon build --symlink-install || true
+
+    chown -R 1000:1000 /ros2_ws/build /ros2_ws/install /ros2_ws/log 2>/dev/null || true
+
+    echo "Workspace build complete."
+fi
+
+source /opt/ros/jazzy/setup.bash
+
+if [ -f /ros2_ws/install/setup.bash ]; then
+    source /ros2_ws/install/setup.bash
+fi
+
+if [ -n "$HOME" ] && [ -f "$HOME/.bashrc" ]; then
+    if ! grep -Fxq "source /opt/ros/jazzy/setup.bash" "$HOME/.bashrc"; then
+        echo "source /opt/ros/jazzy/setup.bash" >> "$HOME/.bashrc"
     fi
 fi
 
-# Source ROS2 setup
-if [ -f /opt/ros/jazzy/setup.bash ]; then
-    source /opt/ros/jazzy/setup.bash
-else
-    echo "Warning: ROS2 setup file not found at /opt/ros/jazzy/setup.bash" >&2
-    exit 1
+if [ -n "$HOME" ] && [ -f "$HOME/.bashrc" ]; then
+    source "$HOME/.bashrc" 2>/dev/null || true
 fi
 
-# Source workspace setup if it exists (check both locations)
-if [ -f /ros2_ws/install/setup.bash ]; then
-    source /ros2_ws/install/setup.bash
-elif [ -f /workspace/ros2_ws/install/setup.bash ]; then
-    source /workspace/ros2_ws/install/setup.bash
-fi
-
-# Execute command passed to container
-exec "$@"
+exec "${@:-bash}"
