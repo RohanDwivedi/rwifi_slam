@@ -1,0 +1,23 @@
+# Release image depends on dev image
+FROM rwifi_nvblox_slam_dev:latest
+
+# Set up ROS2 workspace (already exists from dev image)
+WORKDIR /ros2_ws
+
+# Copy entire src directory to ros2_ws/src
+# .dockerignore excludes isaac-sim-6.0, which will be mounted separately
+COPY --chown=1000:1000 src/ /ros2_ws/src/
+
+# Install Python dependencies
+RUN if [ -f /ros2_ws/src/rwifi_nvblox_slam_ros2/requirements.txt ]; then \
+        python3 -m pip install --break-system-packages -v -r /ros2_ws/src/rwifi_nvblox_slam_ros2/requirements.txt; \
+    fi
+
+# Install dependencies and build ROS2 packages
+RUN bash -c 'cd /ros2_ws && \
+    source /opt/ros/jazzy/setup.bash && \
+    rosdep update && \
+    rosdep install --from-paths src --ignore-src -r -y && \
+    colcon build --symlink-install && \
+    chown -R 1000:1000 /ros2_ws/build /ros2_ws/install /ros2_ws/log'
+
