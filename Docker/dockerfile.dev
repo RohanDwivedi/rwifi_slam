@@ -17,7 +17,7 @@ COPY Docker/pyproject.toml /ros2_ws/pyproject.toml
 COPY Docker/.yamllint /ros2_ws/.yamllint
 
 RUN chmod +x /ros2_ws/entrypoint.sh \
-  && chown 1000:1000 /ros2_ws/entrypoint.sh /ros2_ws/requirements-dev.txt /ros2_ws/pyproject.toml /ros2_ws/.yamllint
+  && chown 1000:1000 /ros2_ws/
 
 RUN python3 -m pip install --break-system-packages -r /ros2_ws/requirements-dev.txt
 
