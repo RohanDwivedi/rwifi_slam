@@ -1,4 +1,11 @@
-FROM osrf/ros:jazzy-desktop
+# Build the development image
+# we mount volumes for the source code
+# and the isaac sim is built from source inside the image
+# intended for developement and testing only
+
+FROM osrf/ros:jazzy-desktop AS dev
+
+ARG DEV=true
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -16,11 +23,19 @@ COPY Docker/requirements-dev.txt /ros2_ws/requirements-dev.txt
 COPY Docker/pyproject.toml /ros2_ws/pyproject.toml
 COPY Docker/.yamllint /ros2_ws/.yamllint
 
+RUN mkdir -p /ros2_ws/scripts
+COPY scripts/build-isaac-sim-local.sh /ros2_ws/scripts/build-isaac-sim-local.sh
+
 RUN chmod +x /ros2_ws/entrypoint.sh \
-  && chown 1000:1000 /ros2_ws/
+  && chmod +x /ros2_ws/scripts/build-isaac-sim-local.sh \
+  && chown 1000:1000 /ros2_ws
+
+# comment out and manually build to save export time and space
+#RUN /ros2_ws/scripts/build-isaac-sim-local.sh --quiet
 
 RUN python3 -m pip install --break-system-packages -r /ros2_ws/requirements-dev.txt
 
 ENTRYPOINT ["/bin/bash", "/ros2_ws/entrypoint.sh"]
 CMD ["bash"]
+
 

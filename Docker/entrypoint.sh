@@ -36,6 +36,13 @@ if [ -n "${HOME:-}" ] && [ -f "$HOME/.bashrc" ]; then
     if [ -f /ros2_ws/install/setup.bash ]; then
         grep -Fxq "source /ros2_ws/install/setup.bash" "$HOME/.bashrc" || echo "source /ros2_ws/install/setup.bash" >> "$HOME/.bashrc"
     fi
+
+    echo "launch_sim() {
+    /ros2_ws/src/simulation/isaac_sim_dev/isaac-sim-6.0/IsaacSim/_build/linux-x86_64/release/python.sh \
+    /ros2_ws/src/simulation/isaac_sim_dev/main.py "$@"
+        }" >> "$HOME/.bashrc"
+
 fi
+
 
 exec "${@:-bash}"

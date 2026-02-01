@@ -98,11 +98,12 @@ execute_build_isaac_sim() {
         args+=(--verbose)
     fi
 
-    ./build.sh "${args[@]}"
-
+    yes yes | ./build.sh "${args[@]}"
+    
     echo "Build completed successfully."
     echo
 }
+
 
 build_isaac_sim() {
     if [ -d "$ISAAC_SIM_REPO/_build" ] && [ "$REBUILD_MODE" = "none" ]; then
@@ -122,10 +123,8 @@ build_isaac_sim() {
     install_dependencies
     prepare_repository
     execute_build_isaac_sim
-    echo "alias slam-sim=\"/home/rohan/rwifi_nvblox_slam/src/simulation/isaac_sim_dev/isaac-sim-6.0/IsaacSim/_build/linux-x86_64/release/python.sh /home/rohan/rwifi_nvblox_slam/src/simulation/isaac_sim_dev/main.py\"" >> ~/.bashrc
 
     echo "Isaac Sim build completed successfully."
-    echo "You can now use the 'slam-sim' --robot [robot_name] --scene [scene_name] alias to run the simulation."
     echo "=========================================="
 }
 
