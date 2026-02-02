@@ -45,4 +45,4 @@ if [ -n "${HOME:-}" ] && [ -f "$HOME/.bashrc" ]; then
 fi
 
 
-exec "${@:-bash}"
+exec "${@}"

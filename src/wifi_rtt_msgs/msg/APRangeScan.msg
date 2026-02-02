@@ -1,2 +1,2 @@
-APRange[] scans
+APRange[] observations
 

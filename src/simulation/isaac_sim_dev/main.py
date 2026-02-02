@@ -7,6 +7,7 @@ import yaml
 
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
 CONFIG_DIR = os.path.join(os.path.dirname(__file__), "configs")
+SIMULATION_WARMUP_TICKS = 100
 
 arguments = argparse.ArgumentParser()
 arguments.add_argument(
@@ -18,6 +19,8 @@ arguments.add_argument(
 arguments.add_argument(
     "--headless", action="store_true", help="Run the simulation in headless mode"
 )
+
+
 args = arguments.parse_args()
 
 config_file: str = args.config
@@ -44,43 +47,23 @@ simulation_app = SimulationApp({"headless": headless})
 
 import numpy as np
 import omni.timeline
+from include.precompute_nlos import NLOSMapFile, PrecomputeNLOS
 from isaacsim.core.api import World
 from isaacsim.core.experimental.utils.stage import add_reference_to_stage
 from isaacsim.core.prims import Articulation, SingleXFormPrim
 from isaacsim.core.utils.extensions import enable_extension
 from isaacsim.storage.native import get_assets_root_path
-from isaacsim.core.utils.rotations import euler_angles_to_quat
 
 enable_extension("isaacsim.ros2.bridge")
 
 world = World(stage_units_in_meters=1.0)
 
 
-def _parse_orientation(orientation: list[float]) -> np.ndarray:
-    orientation_np = np.asarray(orientation, dtype=np.float64)
-    if orientation_np.shape == (4,):
-        if np.max(np.abs(orientation_np)) <= 1.0 + 1e-3:
-            # Heuristic: treat as xyzw if last component is dominant (common in configs).
-            if np.argmax(np.abs(orientation_np)) == 3:
-                return orientation_np[[3, 0, 1, 2]]
-            return orientation_np
-        if np.allclose(orientation_np[:3], 0.0):
-            return euler_angles_to_quat(
-                np.array([0.0, 0.0, orientation_np[3]]), degrees=True
-            )
-        raise ValueError(
-            f"Orientation {orientation} must be a quaternion (w,x,y,z) or yaw degrees in the last element."
-        )
-    if orientation_np.shape == (3,):
-        return euler_angles_to_quat(orientation_np, degrees=True)
-    raise ValueError(
-        f"Orientation {orientation} must be length 3 (Euler degrees) or 4 (quaternion)."
-    )
-
 # Spawn the scene
 scene_path = get_assets_root_path() + scene["usd_path"]
 scene_prim_path = "/World/" + scene["name"]
-add_reference_to_stage(usd_path=scene_path, path=scene_prim_path)
+scene_prim = add_reference_to_stage(usd_path=scene_path, path=scene_prim_path)
+
 
 # Spawn the robot
 robot_path = get_assets_root_path() + robot["usd_path"]
@@ -88,14 +71,18 @@ robot_prim_path = "/World/" + robot["name"]
 
 robot_spawn = robot.get("spawn_point", {})
 position = np.array(robot_spawn.get("position", [0.0, 0.0, 0.0]), dtype=np.float64)
-orientation = _parse_orientation(robot_spawn.get("orientation", [1.0, 0.0, 0.0, 0.0]))
+orientation = np.array(
+    robot_spawn.get("orientation", [1.0, 0.0, 0.0, 0.0]), dtype=np.float64
+)
+positions = position[None, :]
+orientations = orientation[None, :]
 
-add_reference_to_stage(usd_path=robot_path, path=robot_prim_path)
+robot_prim = add_reference_to_stage(usd_path=robot_path, path=robot_prim_path)
 robot_articulation = Articulation(prim_paths_expr=robot_prim_path, name=robot["name"])
 world.scene.add(robot_articulation)
 robot_articulation.set_world_poses(
-    positions=np.array([position], dtype=np.float32),
-    orientations=np.array([orientation], dtype=np.float32),
+    positions=positions,
+    orientations=orientations,
 )
 
 # Spawn the access points
@@ -106,15 +93,41 @@ for access_point in access_points:
     access_point_prim_path = "/World/" + access_point["name"]
     add_reference_to_stage(usd_path=access_point_path, path=access_point_prim_path)
     access_point_prim = SingleXFormPrim(
-        prim_path=access_point_prim_path,
+        access_point_prim_path,
         name=access_point["name"],
         position=np.array(access_point["position"], dtype=np.float64),
-        orientation=_parse_orientation(access_point["orientation"]),
+        orientation=np.array(access_point["orientation"], dtype=np.float64),
         scale=np.array([0.1, 0.1, 0.1], dtype=np.float64),
     )
     world.scene.add(access_point_prim)
 
+
+def precompute_nlos_map():
+    nlos_map_path = os.path.join(CONFIG_DIR, scene["name"] + "_nlos_map.pkl")
+    if os.path.exists(nlos_map_path):
+        nlos_map_file = NLOSMapFile.load(nlos_map_path)
+    else:
+        print("computing nlos map...Patience is a virtue...")
+        precompute_nlos = PrecomputeNLOS(
+            access_points,
+            scene_prim,
+            float(robot["antenna_height"]),
+            float(scene["resolution"]),
+            simulation_app,
+        )
+        nlos_map_file = precompute_nlos.precompute_nlos_map()
+        nlos_map_file.save(nlos_map_path)
+
+    PrecomputeNLOS.draw_all_aps_stacked(nlos_map_file)
+
+
 omni.timeline.get_timeline_interface().play()
+
+for _ in range(SIMULATION_WARMUP_TICKS):
+    simulation_app.update()
+
+precompute_nlos_map()
+
 while simulation_app.is_running():
     simulation_app.update()
 
