@@ -30,9 +30,7 @@ setup(
     zip_safe=True,
     maintainer="Rohan Dwivedi",
     maintainer_email="myemail.rohan@gmail.com",
-    description=(
-        "WiFi localisation, nvblox mapping for Robots in the ambient environment"
-    ),
+    description=("WiFi localisation, nvblox mapping for Robots in the ambient environment"),
     license="Apache 2.0",
     extras_require={
         "test": [

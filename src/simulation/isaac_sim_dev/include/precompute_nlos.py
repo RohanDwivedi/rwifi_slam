@@ -14,8 +14,7 @@ from isaacsim.util.debug_draw import _debug_draw as debug_draw
 from omni.physx import get_physx_scene_query_interface
 from pxr import Usd
 
-from wifi_rtt_interface.nlos_map_schema import (NLOSMap, NLOSMapFile,
-                                                NLOSObservation)
+from wifi_rtt_interface.nlos_map_schema import NLOSMap, NLOSMapFile, NLOSObservation
 from wifi_rtt_interface.rng import RNG
 
 MU_NLOS = 2.0
@@ -63,9 +62,7 @@ class PrecomputeNLOS:
         bounds = compute_aabb(bb_cache, prim.GetPath())
         return np.array(bounds, dtype=np.float64)
 
-    def _compute_grid_centers(
-        self, scene_bbox: np.ndarray, resolution: float
-    ) -> np.ndarray:
+    def _compute_grid_centers(self, scene_bbox: np.ndarray, resolution: float) -> np.ndarray:
         """Compute (N, 3) grid cell centers at z = antenna_height.
 
         Args:
@@ -96,9 +93,7 @@ class PrecomputeNLOS:
         )
 
         xx, yy = np.meshgrid(x_centers, y_centers, indexing="ij")
-        return np.column_stack((xx.ravel(), yy.ravel(), np.full(xx.size, z))).astype(
-            np.float64
-        )
+        return np.column_stack((xx.ravel(), yy.ravel(), np.full(xx.size, z))).astype(np.float64)
 
     def _count_obstructions(
         self,
@@ -123,9 +118,7 @@ class PrecomputeNLOS:
                 hit_bodies.append(hit.rigid_body)
             return True
 
-        get_physx_scene_query_interface().raycast_all(
-            origin, direction, distance, report_hit, bothSides=True
-        )
+        get_physx_scene_query_interface().raycast_all(origin, direction, distance, report_hit, bothSides=True)
         return len(sorted(set(hit_bodies)))
 
     def precompute_nlos_map(self) -> NLOSMapFile:
@@ -167,9 +160,7 @@ class PrecomputeNLOS:
                 if is_los:
                     bias_val = 0.0
                 else:
-                    cumulative_delay = sum(
-                        RNG.normal(MU_NLOS, SIGMA_NLOS) for _ in range(n_blocks)
-                    )
+                    cumulative_delay = sum(RNG.normal(MU_NLOS, SIGMA_NLOS) for _ in range(n_blocks))
                     bias_val = float(cumulative_delay) + (LINEAR_WEIGHT * true_dist)
 
                 obs = NLOSObservation(
@@ -215,11 +206,7 @@ class PrecomputeNLOS:
             pt = nlos_map_file.nlos_map[0].nlos_observations[cell_idx].grid_cell_center
             all_pts.append([float(pt[0]), float(pt[1]), 0.1])
 
-            nlos_count = sum(
-                1
-                for ap_map in nlos_map_file.nlos_map
-                if not ap_map.nlos_observations[cell_idx].los
-            )
+            nlos_count = sum(1 for ap_map in nlos_map_file.nlos_map if not ap_map.nlos_observations[cell_idx].los)
             fraction_nlos = nlos_count / num_aps
             all_rgba.append([fraction_nlos, 1.0 - fraction_nlos, 0.0, alpha])
 
