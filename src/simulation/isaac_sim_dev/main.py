@@ -61,7 +61,8 @@ import numpy as np  # noqa: E402
 import omni.timeline  # noqa: E402
 from include.precompute_nlos import NLOSMapFile, PrecomputeNLOS  # noqa: E402
 from isaacsim.core.api import World  # noqa: E402
-from isaacsim.core.experimental.utils.stage import add_reference_to_stage  # noqa: E402
+from isaacsim.core.experimental.utils.stage import \
+    add_reference_to_stage  # noqa: E402
 from isaacsim.core.prims import Articulation, SingleXFormPrim  # noqa: E402
 from isaacsim.core.utils.extensions import enable_extension  # noqa: E402
 from isaacsim.storage.native import get_assets_root_path  # noqa: E402

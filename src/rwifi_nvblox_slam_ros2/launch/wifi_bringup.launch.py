@@ -7,7 +7,8 @@ from typing import Any
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
+from launch.actions import (DeclareLaunchArgument, ExecuteProcess,
+                            OpaqueFunction)
 from launch.launch_context import LaunchContext
 from launch_ros.actions import Node
 

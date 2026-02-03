@@ -14,7 +14,8 @@ from isaacsim.util.debug_draw import _debug_draw as debug_draw
 from omni.physx import get_physx_scene_query_interface
 from pxr import Usd
 
-from wifi_rtt_interface.nlos_map_schema import NLOSMap, NLOSMapFile, NLOSObservation
+from wifi_rtt_interface.nlos_map_schema import (NLOSMap, NLOSMapFile,
+                                                NLOSObservation)
 from wifi_rtt_interface.rng import RNG
 
 MU_NLOS = 2.0
