@@ -32,14 +32,8 @@ RUN chmod +x /entrypoint.sh \
   && chown 1000:1000 /ros2_ws
 
 
-RUN python3 -m pip install --break-system-packages -r /ros2_ws/requirements-dev.txt
+RUN python3 -m pip install --break-system-packages -r /requirements-dev.txt
 
 ENTRYPOINT ["/bin/bash", "/ros2_ws/entrypoint.sh"]
 CMD ["bash"]
-
-
-
-
-
-
 
