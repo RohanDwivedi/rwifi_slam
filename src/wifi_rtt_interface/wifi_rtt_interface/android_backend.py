@@ -1,1 +1,1 @@
-# TODO: Implement Android backend
+"""Placeholder for Android-backed Wi-Fi RTT; not implemented."""

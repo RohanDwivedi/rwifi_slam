@@ -1,49 +1,68 @@
+"""ROS 2 node that publishes Wi-Fi RTT scan observations from a configurable backend."""
+
 import rclpy
 from rclpy.node import Node
-from rclpy.parameter import ParameterDescriptor
 
-from wifi_rtt_msgs.msg import APRange, APRangeScan
+from wifi_rtt_msgs.msg import APRangeObservation
 
 
 class WifiRttPublisher(Node):
-    def __init__(self):
-        super().__init__("wifi_rtt_publisher")
+    """Publishes access-point range observations from simulation or Android backend.
 
-        # publisher frequency rate limited by wifi IEEE 802.11mc standard
-        self.publisher_ = self.create_publisher(APRangeScan, "wifi_rtt_scan", 5)
+    Publishes on the wifi_rtt_scan topic at 5 Hz, consistent with the IEEE 802.11mc
+    round-trip time (RTT) scan rate limit.
+    """
 
-        self.declare_parameter(
-            "select_backend",
-            "simulation",
-            descriptor=ParameterDescriptor(
-                description="Select the backend to use for Wi-Fi RTT scanning. Options: simulation, android"
-            ),
+    def __init__(self) -> None:
+        """Initialize the node, create publisher, and configure backend from parameters.
+
+        Loads backend_type from parameters and instantiates the corresponding backend
+        (e.g. SimulationBackend for simulation_isaac_sim). Starts a 5 Hz timer that
+        delegates to the backend to fetch and publish observations.
+
+        Raises:
+            NotImplementedError: If backend_type is 'android' (not implemented).
+            ValueError: If backend_type is not 'simulation_isaac_sim' or 'android'.
+        """
+        super().__init__(
+            "wifi_rtt_publisher",
+            allow_undeclared_parameters=True,
+            automatically_declare_parameters_from_overrides=True,
         )
 
-        self.backend = self.get_parameter("select_backend").value
-        
-        if self.backend == "simulation":
+        self.publisher_ = self.create_publisher(APRangeObservation, "wifi_rtt_scan", 5)
+        self.use_sim_time = self.get_parameter("use_sim_time").value
+        self.clock = self.get_clock()
+
+        self.backend = self.get_parameter("backend_type").value
+        if self.backend == "simulation_isaac_sim":
             from wifi_rtt_interface.simulation_backend import SimulationBackend
 
-            self.backend_interface = SimulationBackend()
-            self.backend_interface.start()
-
+            self.backend_interface = SimulationBackend(
+                simulation_type=self.backend,
+                clock=self.clock,
+                node=self,
+                publisher=self.publisher_,
+            )
         elif self.backend == "android":
-            from wifi_rtt_interface.android_backend import AndroidBackend
+            raise NotImplementedError("Android backend not implemented yet")
+        elif self.backend not in ["simulation_isaac_sim", "android"]:
+            self.get_logger().error(f"Invalid backend type: {self.backend}")
+            raise ValueError(f"Invalid backend type: {self.backend}")
 
-            self.backend_interface = AndroidBackend()
-            self.backend_interface.start()
+        self._timer = self.create_timer(0.2, self._on_timer)
 
-        else:
-            self.get_logger().error(f"Invalid backend: {self.backend}")
-            raise ValueError(f"Invalid backend: {self.backend}")
+    def _on_timer(self) -> None:
+        """Invoke the backend to fetch the current RTT observation and publish it."""
+        self.backend_interface.publish_observation()
 
 
-    def publish_scan(self):
-        self.backend_interface.get_rtt()
-        
+def main(args: list[str] | None = None) -> None:
+    """Create the Wi-Fi RTT publisher node and run the ROS 2 spin loop.
 
-def main(args=None):
+    Args:
+        args: Command-line arguments forwarded to rclpy.init. If None, sys.argv is used.
+    """
     rclpy.init(args=args)
     node = WifiRttPublisher()
     try:

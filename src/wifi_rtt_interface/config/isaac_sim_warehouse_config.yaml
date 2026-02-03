@@ -1,0 +1,15 @@
+---
+# Wi-Fi RTT publisher config for Isaac Sim warehouse.
+# Used by wifi_bringup.launch.py; backend_type, use_sim_time, and nlos_map_file are overridden from launch args.
+/wifi_rtt_publisher:
+  ros__parameters:
+    backend_type: simulation_isaac_sim
+    world_frame: odom
+    base_link_frame: base_link
+    use_sim_time: true
+
+    simulation_isaac_sim:
+      # Overridden by launch file (nlos_map_file) when using wifi_bringup.launch.py
+      nlos_map_file: ""
+      grid_cell_resolution: 0.1
+      antenna_height: 0.6

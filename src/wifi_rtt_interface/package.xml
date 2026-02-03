@@ -3,7 +3,7 @@
 <package format="3">
   <name>wifi_rtt_interface</name>
   <version>0.0.1</version>
-  <description>Wi-Fi RTT publisher with simulation and Android API backends for ROS 2.<description>
+  <description>Wi-Fi RTT publisher with simulation and Android API backends for ROS 2.</description>
   <maintainer email="myemail.rohan@gmail.com">root</maintainer>
   <license>Apache 2.0</license>
 
@@ -12,6 +12,9 @@
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
 
+  <depend>geometry_msgs</depend>
+  <depend>python3-scipy</depend>
+  <depend>tf2_ros</depend>
   <depend>wifi_rtt_msgs</depend>
 
   <export>

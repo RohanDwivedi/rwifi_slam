@@ -22,6 +22,7 @@ COPY Docker/entrypoint.sh /ros2_ws/entrypoint.sh
 COPY Docker/requirements-dev.txt /ros2_ws/requirements-dev.txt
 COPY Docker/pyproject.toml /ros2_ws/pyproject.toml
 COPY Docker/.yamllint /ros2_ws/.yamllint
+COPY Docker/.flake8 /ros2_ws/.flake8
 
 RUN mkdir -p /ros2_ws/scripts
 COPY scripts/build-isaac-sim-local.sh /ros2_ws/scripts/build-isaac-sim-local.sh
