@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy entire src directory to ros2_ws/src
-# .dockerignore excludes isaac-sim-6.0, which will be mounted separately
+# .dockerignore excludes isaac-sim-6.0, which should be mounted separately
 COPY --chown=1000:1000 src/ /ros2_ws/src/
 
 WORKDIR /ros2_ws
@@ -27,14 +27,10 @@ COPY Docker/requirements-dev.txt /requirements-dev.txt
 COPY Docker/pyproject.toml /pyproject.toml
 COPY Docker/.yamllint /.yamllint
 
-RUN mkdir -p /scripts
-COPY scripts/build-isaac-sim-local.sh /scripts/build-isaac-sim-local.sh
-
+ 
 RUN chmod +x /entrypoint.sh \
-  && chmod +x /scripts/build-isaac-sim-local.sh \
   && chown 1000:1000 /ros2_ws
 
-RUN /scripts/build-isaac-sim-local.sh --quiet
 
 RUN python3 -m pip install --break-system-packages -r /ros2_ws/requirements-dev.txt
 
