@@ -2,7 +2,6 @@
 
 import rclpy
 from rclpy.node import Node
-
 from wifi_rtt_msgs.msg import APRangeObservation
 
 
