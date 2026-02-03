@@ -79,7 +79,9 @@ robot_prim_path = "/World/" + robot["name"]
 
 robot_spawn = robot.get("spawn_point", {})
 position = np.array(robot_spawn.get("position", [0.0, 0.0, 0.0]), dtype=np.float64)
-orientation = np.array(robot_spawn.get("orientation", [1.0, 0.0, 0.0, 0.0]), dtype=np.float64)
+orientation = np.array(
+    robot_spawn.get("orientation", [1.0, 0.0, 0.0, 0.0]), dtype=np.float64
+)
 positions = position[None, :]
 orientations = orientation[None, :]
 
@@ -92,7 +94,9 @@ robot_articulation.set_world_poses(
 )
 
 for access_point in access_points:
-    access_point_path = os.path.join(ASSETS_DIR, "sensors", "wifi_access_point", "unify_ap.usda")
+    access_point_path = os.path.join(
+        ASSETS_DIR, "sensors", "wifi_access_point", "unify_ap.usda"
+    )
     access_point_prim_path = "/World/" + access_point["name"]
     add_reference_to_stage(usd_path=access_point_path, path=access_point_prim_path)
     access_point_prim = SingleXFormPrim(

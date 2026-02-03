@@ -30,7 +30,9 @@ def _get_simulation_dir() -> str:
     return os.path.join(launch_dir, "..", "..", "simulation", "isaac_sim_dev")
 
 
-_ISAAC_SIM_PYTHON_SH = os.path.join("isaac-sim-6.0", "IsaacSim", "_build", "linux-x86_64", "release", "python.sh")
+_ISAAC_SIM_PYTHON_SH = os.path.join(
+    "isaac-sim-6.0", "IsaacSim", "_build", "linux-x86_64", "release", "python.sh"
+)
 
 
 def _launch_isaac_sim(
@@ -146,7 +148,9 @@ def _launch_simulation_and_wifi_node(
         "backend_type": backend_type,
     }
     if backend_type == "simulation_isaac_sim":
-        node_param_overrides["simulation_isaac_sim.nlos_map_file"] = context.launch_configurations["nlos_map_file"]
+        node_param_overrides["simulation_isaac_sim.nlos_map_file"] = (
+            context.launch_configurations["nlos_map_file"]
+        )
 
     actions.append(
         Node(

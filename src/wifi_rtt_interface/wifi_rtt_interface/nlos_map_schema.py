@@ -34,7 +34,9 @@ class _NLOSUnpickler(pickle.Unpickler):
         Returns:
             The class object to use for deserialization.
         """
-        if (module == "include" or module.startswith("include.")) and name in _SCHEMA_CLASSES:
+        if (
+            module == "include" or module.startswith("include.")
+        ) and name in _SCHEMA_CLASSES:
             return getattr(
                 __import__(__name__, fromlist=[name]),
                 name,
@@ -93,7 +95,10 @@ class NLOSMap:
     def __post_init__(self) -> None:
         """Validate access_point_position shape."""
         if np.shape(self.access_point_position) != (3,):
-            raise ValueError("Access point position must be a 3D array, got " f"{np.shape(self.access_point_position)}")
+            raise ValueError(
+                "Access point position must be a 3D array, got "
+                f"{np.shape(self.access_point_position)}"
+            )
 
 
 @dataclass

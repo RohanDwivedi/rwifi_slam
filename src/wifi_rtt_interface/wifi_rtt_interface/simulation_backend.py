@@ -82,11 +82,17 @@ class SimulationBackend:
 
         self.world_frame = node.get_parameter("world_frame").value
         self.base_link_frame = node.get_parameter("base_link_frame").value
-        self.grid_cell_resolution = float(node.get_parameter("simulation_isaac_sim.grid_cell_resolution").value)
-        self.antenna_height = float(node.get_parameter("simulation_isaac_sim.antenna_height").value)
+        self.grid_cell_resolution = float(
+            node.get_parameter("simulation_isaac_sim.grid_cell_resolution").value
+        )
+        self.antenna_height = float(
+            node.get_parameter("simulation_isaac_sim.antenna_height").value
+        )
 
         if self.simulation_type == "simulation_isaac_sim":
-            nlos_map_path = node.get_parameter("simulation_isaac_sim.nlos_map_file").value
+            nlos_map_path = node.get_parameter(
+                "simulation_isaac_sim.nlos_map_file"
+            ).value
             self._load_nlos_map(nlos_map_path)
         else:
             raise ValueError(f"Invalid simulation type: {self.simulation_type}")
@@ -115,12 +121,14 @@ class SimulationBackend:
             while not os.path.exists(nlos_map_path):
                 if waited >= WAIT_TIMEOUT_SEC:
                     self.node.get_logger().error(
-                        f"NLOS map not found after {WAIT_TIMEOUT_SEC:.0f}s: " f"{nlos_map_path}"
+                        f"NLOS map not found after {WAIT_TIMEOUT_SEC:.0f}s: "
+                        f"{nlos_map_path}"
                     )
                     raise FileNotFoundError(f"NLOS map file not found: {nlos_map_path}")
 
                 self.node.get_logger().warning(
-                    f"Waiting for NLOS map (Isaac Sim may be computing): " f"{nlos_map_path}",
+                    f"Waiting for NLOS map (Isaac Sim may be computing): "
+                    f"{nlos_map_path}",
                     throttle_duration_sec=LOG_INTERVAL_SEC,
                 )
                 time.sleep(POLL_INTERVAL_SEC)
@@ -154,14 +162,18 @@ class SimulationBackend:
         if not first_map.nlos_observations:
             return
 
-        self._grid_cell_centers = np.array([obs.grid_cell_center[:2] for obs in first_map.nlos_observations])
+        self._grid_cell_centers = np.array(
+            [obs.grid_cell_center[:2] for obs in first_map.nlos_observations]
+        )
         self._grid_kdtree = KDTree(self._grid_cell_centers)
 
         n_aps = len(self.nlos_map_file.nlos_map)
         n_cells = len(self._grid_cell_centers)
         self.node.get_logger().info(f"Built grid index: {n_cells} cells, {n_aps} AP(s)")
 
-    def _get_transform(self, from_frame_id: str, to_frame_id: str) -> TransformStamped | None:
+    def _get_transform(
+        self, from_frame_id: str, to_frame_id: str
+    ) -> TransformStamped | None:
         """Look up the latest transform from source frame to target frame.
 
         Args:
@@ -220,7 +232,9 @@ class SimulationBackend:
 
         transform = self._get_transform(self.world_frame, self.base_link_frame)
         if transform is None:
-            self.node.get_logger().error("Failed to get transform from world to base_link")
+            self.node.get_logger().error(
+                "Failed to get transform from world to base_link"
+            )
             return []
 
         robot_position = np.array(
@@ -245,7 +259,9 @@ class SimulationBackend:
 
             robot_3d = np.append(robot_position, self.antenna_height)
             true_distance = float(np.linalg.norm(access_point_position - robot_3d))
-            measured_distance = true_distance + nlos_bias + measurement_noise + hardware_bias
+            measured_distance = (
+                true_distance + nlos_bias + measurement_noise + hardware_bias
+            )
 
             observations.append(
                 APRange(
