@@ -22,17 +22,15 @@ COPY --chown=1000:1000 src/ /ros2_ws/src/
 
 WORKDIR /ros2_ws
 
-COPY Docker/entrypoint.sh /entrypoint.sh
-COPY Docker/requirements-dev.txt /requirements-dev.txt
-COPY Docker/pyproject.toml /pyproject.toml
-COPY Docker/.yamllint /.yamllint
+COPY Docker/entrypoint.sh /ros2_ws/entrypoint.sh
+COPY Docker/requirements-dev.txt /ros2_ws/requirements-dev.txt
+COPY Docker/pyproject.toml /ros2_ws/pyproject.toml
+COPY Docker/.yamllint /ros2_ws/.yamllint
 
- 
-RUN chmod +x /entrypoint.sh \
+RUN chmod +x /ros2_ws/entrypoint.sh \
   && chown 1000:1000 /ros2_ws
 
-
-RUN python3 -m pip install --break-system-packages -r /requirements-dev.txt
+RUN python3 -m pip install --break-system-packages -r /ros2_ws/requirements-dev.txt
 
 ENTRYPOINT ["/bin/bash", "/ros2_ws/entrypoint.sh"]
 CMD ["bash"]
