@@ -1,6 +1,6 @@
 # Scripts
 
-This directory contains utility scripts for setting up and building the rwifi_nvblox_slam development environment.
+This directory contains utility scripts for setting up and building the rwifi_slam development environment.
 
 ## Scripts Overview
 
@@ -24,11 +24,11 @@ Builds Docker images for development or release.
 - Uses persistent local cache for faster rebuilds
 - For `rel`: Automatically builds dev image first (since rel depends on dev)
 - Interactive confirmation (skipped in CI/CD)
-- Dev image: `rwifi_nvblox_slam-dev`
-- Rel image: `ghcr.io/rohandwivedi/rwifi_nvblox_slam:latest`
+- Dev image: `rwifi_slam-dev`
+- Rel image: `ghcr.io/rohandwivedi/rwifi_slam:latest`
 
 **Environment Variables:**
-- `BUILDER_NAME`: Docker BuildKit builder name (default: `rwifi_nvblox_slam-builder`)
+- `BUILDER_NAME`: Docker BuildKit builder name (default: `rwifi_slam-builder`)
 - `CACHE_DIR`: Cache directory (default: `.buildx-cache`)
 - `GHCR_OWNER`: GitHub Container Registry owner (default: `rohandwivedi`)
 
@@ -62,7 +62,7 @@ Builds NVIDIA Isaac Sim 6.0 from source locally.
 - Installs build dependencies (GCC-11, CMake, etc.)
 - Configures cache directories in `/workspace/.isaac-sim-cache`
 - Builds with ccache for faster rebuilds
-- Creates alias: `isaac-rwifi_nvblox_slam`
+- Creates alias: `isaac-rwifi_slam`
 
 **Example:**
 ```bash

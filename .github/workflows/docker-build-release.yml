@@ -12,7 +12,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME_DEV: rwifi_nvblox_slam
+  IMAGE_NAME_DEV: rwifi_slam
   ROS2_VERSION: jazzy
 
 permissions:
@@ -105,7 +105,7 @@ jobs:
                        source /ros2_ws/install/setup.bash; \
                      fi && \
                      cd /ros2_ws && \
-                     colcon test --packages-select rwifi_nvblox_slam_ros2 --event-handlers console_direct+ && \
+                     colcon test --packages-select rwifi_slam_ros2 --event-handlers console_direct+ && \
                      colcon test-result --verbose"
 
   release:
@@ -162,7 +162,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PACKAGE_XML="src/rwifi_nvblox_slam_ros2/package.xml"
+          PACKAGE_XML="src/rwifi_slam_ros2/package.xml"
           if [ ! -f "$PACKAGE_XML" ]; then
             echo "Error: package.xml not found at $PACKAGE_XML"
             exit 1
@@ -184,7 +184,7 @@ jobs:
 
           sed -i "s/<version>$CURRENT_VERSION<\/version>/<version>$NEW_VERSION<\/version>/" "$PACKAGE_XML"
 
-          SETUP_PY="src/rwifi_nvblox_slam_ros2/setup.py"
+          SETUP_PY="src/rwifi_slam_ros2/setup.py"
           SETUP_PY_UPDATED=false
           if [ -f "$SETUP_PY" ]; then
             SETUP_CURRENT_VERSION=$(grep -oP 'version="\K[^"]+' "$SETUP_PY" || true)
@@ -209,9 +209,9 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add src/rwifi_nvblox_slam_ros2/package.xml
+          git add src/rwifi_slam_ros2/package.xml
           if [ "${{ steps.update-version.outputs.setup_py_updated }}" = "true" ]; then
-            git add src/rwifi_nvblox_slam_ros2/setup.py
+            git add src/rwifi_slam_ros2/setup.py
           fi
           git diff --staged --quiet || git commit -m "chore: bump version to ${{ steps.update-version.outputs.new_version }} [skip ci]"
           git push origin main

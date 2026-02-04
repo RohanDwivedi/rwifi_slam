@@ -1,6 +1,6 @@
 # Docker Configuration
 
-This directory contains Docker configuration files for the rwifi_nvblox_slam  development environment.
+This directory contains Docker configuration files for the rwifi_slam development environment.
 
 ## Files
 
@@ -26,10 +26,10 @@ cd ..
 ```bash
 cd ..
 # Build development image
-docker build -f Docker/dockerfile.dev -t rwifi_nvblox_slam-dev .
+docker build -f Docker/dockerfile.dev -t rwifi_slam-dev .
 
 # Build release image (requires dev image first)
-docker build -f Docker/dockerfile.rel -t ghcr.io/rohandwivedi/rwifi_nvblox_slam:latest .
+docker build -f Docker/dockerfile.rel -t ghcr.io/rohandwivedi/rwifi_slam:latest .
 ```
 
 ## Running the Container
@@ -50,7 +50,7 @@ docker run -it --rm \
   -e DISPLAY=$DISPLAY \
   -v $(pwd)/../src/simulation/isaac_sim_dev/isaac-sim-6.0:/ros2_ws/src/simulation/isaac_sim_dev/isaac-sim-6.0:rw \
   -v $(pwd)/../.isaac-sim-cache:/workspace/.isaac-sim-cache:rw \
-  ghcr.io/rohandwivedi/rwifi_nvblox_slam:latest
+  ghcr.io/rohandwivedi/rwifi_slam:latest
 ```
 
 ## Container Features
@@ -123,12 +123,12 @@ To use:
 ## Image Registry
 
 The image is published to GitHub Container Registry:
-- **Image**: `ghcr.io/rohandwivedi/rwifi_nvblox_slam:latest`
+- **Image**: `ghcr.io/rohandwivedi/rwifi_slam:latest`
 - **Build**: Automated via GitHub Actions (`.github/workflows/docker-build-release.yml`)
 
 ### Pulling Pre-built Image
 ```bash
-docker pull ghcr.io/rohandwivedi/rwifi_nvblox_slam:latest
+docker pull ghcr.io/rohandwivedi/rwifi_slam:latest
 ```
 
 ## Troubleshooting

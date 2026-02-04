@@ -10,9 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Use underscores to match Dockerfile 'FROM' and YAML requirements
-DEV_IMAGE_NAME="rwifi_nvblox_slam_dev"
+DEV_IMAGE_NAME="rwifi_slam_dev"
 GHCR_OWNER="${GHCR_OWNER:-rohandwivedi}"
-REGISTRY_IMAGE="ghcr.io/${GHCR_OWNER}/rwifi_nvblox_slam:latest"
+REGISTRY_IMAGE="ghcr.io/${GHCR_OWNER}/rwifi_slam:latest"
 
 BUILD_TYPE="${1:-rel}"
 
@@ -41,7 +41,7 @@ setup_buildx() {
         docker buildx use default
     else
         # Local development: Ensure a custom builder exists for advanced features
-        BUILDER_NAME="rwifi_nvblox_slam-builder"
+        BUILDER_NAME="rwifi_slam-builder"
         if ! docker buildx inspect "${BUILDER_NAME}" >/dev/null 2>&1; then
             docker buildx create --name "${BUILDER_NAME}" --driver docker-container --use
         else
@@ -69,7 +69,7 @@ run_build() {
 }
 
 main() {
-    print_section "Building rwifi_nvblox_slam ($BUILD_TYPE)"
+    print_section "Building rwifi_slam ($BUILD_TYPE)"
 
     # Skip prompt in CI
     if [[ -t 0 && -z "${GITHUB_ACTIONS:-}" ]]; then
@@ -88,7 +88,7 @@ main() {
     fi
 
     print_section "Build Completed Successfully"
-    echo "Images available: $(docker images --format '{{.Repository}}:{{.Tag}}' | grep rwifi_nvblox_slam | xargs)"
+    echo "Images available: $(docker images --format '{{.Repository}}:{{.Tag}}' | grep rwifi_slam | xargs)"
 }
 
 main "$@"

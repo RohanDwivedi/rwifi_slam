@@ -7,9 +7,9 @@ if [ -d /ros2_ws/src ] && [ "$(ls -A /ros2_ws/src 2>/dev/null)" ]; then
     echo "Building ROS2 workspace..."
     cd /ros2_ws
 
-    if [ -f /ros2_ws/src/rwifi_nvblox_slam_ros2/requirements.txt ]; then
+    if [ -f /ros2_ws/src/rwifi_slam_ros2/requirements.txt ]; then
         echo "Installing Python dependencies..."
-        python3 -m pip install --break-system-packages -q -r /ros2_ws/src/rwifi_nvblox_slam_ros2/requirements.txt || true
+        python3 -m pip install --break-system-packages -q -r /ros2_ws/src/rwifi_slam_ros2/requirements.txt || true
     fi
 
     echo "Installing ROS2 dependencies via rosdep..."
