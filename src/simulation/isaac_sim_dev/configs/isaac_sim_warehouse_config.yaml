@@ -1,0 +1,40 @@
+---
+robot:
+  name: nova_carter
+  usd_path: "/Isaac/Samples/ROS2/Robots/Nova_Carter_ROS.usd"
+  spawn_point:
+    position: [0.0, 0.0, 0.0]
+    orientation: [0.0, 0.0, 0.0, 1.0]
+  antenna_height: 0.6
+
+scene:
+  name: warehouse
+  usd_path: "/Isaac/Environments/Simple_Warehouse/full_warehouse.usd"
+  resolution: 0.25
+
+# orientation is in the form of [W,X,Y,Z] (quaternion)
+access_points:
+  - name: AP1
+    position: [-4.5, -23.24, 3.2]
+    orientation: [0.70, -0.70, 0.0, 0.0]
+    mac_address: "00:00:00:00:00:01"
+
+  - name: AP2
+    position: [-26.32, -1.12, 1.5]
+    orientation: [0.70, 0.0, 0.70, 0.0]
+    mac_address: "00:00:00:00:00:02"
+
+  - name: AP3
+    position: [-5.5, 14.7, 4.1]
+    orientation: [0.0, 0.0, 0.0, 1.0]
+    mac_address: "00:00:00:00:00:03"
+
+  - name: AP4
+    position: [5.4, 0.0, 1.0]
+    orientation: [0.0, -0.69, -0.24, 0.67]
+    mac_address: "00:00:00:00:00:04"
+
+  - name: AP5
+    position: [-24.5, 23.66, 4.32]
+    orientation: [0.0, 0.0, 0.0, 1.0]
+    mac_address: "00:00:00:00:00:05"

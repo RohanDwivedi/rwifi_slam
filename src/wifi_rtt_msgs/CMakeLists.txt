@@ -14,7 +14,7 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/APRange.msg"
-  "msg/APRangeScan.msg"
+  "msg/APRangeObservation.msg"
   DEPENDENCIES std_msgs
 )
 

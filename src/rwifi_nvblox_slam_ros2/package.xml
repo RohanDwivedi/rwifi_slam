@@ -11,6 +11,10 @@
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>wifi_rtt_msgs</exec_depend>
+  <exec_depend>wifi_rtt_interface</exec_depend>
+  <exec_depend>teleop_twist_keyboard</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

@@ -1,0 +1,44 @@
+# Pre-commit hooks for formatting and linting.
+# Install: pip install pre-commit && pre-commit install
+# Run on all files: pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        name: black (format)
+        args: [--config, Docker/pyproject.toml]
+        files: ^src/
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort (imports)
+        args: [--settings-path, Docker/pyproject.toml]
+        files: ^src/
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        name: flake8 (lint)
+        args: [--config, Docker/.flake8]
+        files: ^src/
+
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        name: pydocstyle (docstrings)
+        args: [--config, Docker/pyproject.toml]
+        files: ^src/
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        name: yamllint
+        args: [-c, Docker/.yamllint]
+        files: ^src/

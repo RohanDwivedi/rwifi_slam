@@ -1,12 +1,12 @@
 services:
   dev:
-    image: rwifi_nvblox_slam_dev
-    user: "1000:1000"
+    image: rwifi_nvblox_slam_development
+    user: "root:root"
     pull_policy: missing
     build:
       context: ..
       dockerfile: Docker/dockerfile.dev
-    container_name: rwifi_nvblox_slam_dev
+    container_name: rwifi_nvblox_slam_development
     privileged: true
     environment:
       RMW_IMPLEMENTATION: rmw_fastrtps_cpp

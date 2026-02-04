@@ -8,6 +8,7 @@ isort>=5.13.0,<6.0.0
 pydocstyle>=6.3.0,<7.0.0
 yamllint>=1.33.0,<2.0.0
 flake8>=6.1.0,<8.0.0
+pre-commit>=3.6.0,<4.0.0
 
 # others (PyYAML for yaml.safe_load etc.)
 pyyaml>=6.0

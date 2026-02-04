@@ -42,28 +42,32 @@ jobs:
       - name: Run Black formatter check
         id: black
         run: |
-          black --check --diff src/
+          python -m pip show black
+          black --version
+          # Use the pyproject under Docker/ so CI uses the same config as local
+          black --check --diff --config Docker/pyproject.toml src/
 
       - name: Run isort check
         id: isort
         run: |
-          isort --check-only --diff src/
+          # Use the pyproject under Docker/ so CI uses the same config as local
+          isort --check-only --diff --settings-path Docker/pyproject.toml src/
 
       - name: Run flake8
         id: flake8
         run: |
-          flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+          flake8 src/ --config Docker/.flake8 --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 src/ --config Docker/.flake8 --count --exit-zero --max-complexity=10 --statistics
 
       - name: Run pydocstyle
         id: pydocstyle
         run: |
-          pydocstyle src/ --convention=google --add-ignore=D100,D104
+          pydocstyle src/ --config Docker/pyproject.toml
 
       - name: Run yamllint
         id: yamllint
         run: |
-          yamllint src/
+          yamllint -c Docker/.yamllint src/
 
       - name: Comment PR with lint results
         if: always() && github.event_name == 'pull_request'

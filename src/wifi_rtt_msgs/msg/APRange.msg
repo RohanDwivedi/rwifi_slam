@@ -1,5 +1,7 @@
-std_msgs/Header header
-uint8[6] mac_id
-int16 rssi_dbm
-float32 distance_m
-float32 distance_std_m
+string   mac_address
+float32  measured_distance
+float32  true_distance
+float32  nlos_bias
+float32  measurement_noise
+float32  hardware_bias
+bool     los

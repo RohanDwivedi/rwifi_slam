@@ -55,6 +55,17 @@ docker run -it --rm \
 
 ## Container Features
 
+### Pre-commit (formatting & linting)
+
+From the repo root (or inside the container with the repo mounted), install the git hooks so Black, isort, flake8, pydocstyle, and yamllint run automatically before each commit:
+
+```bash
+pip install -r Docker/requirements-dev.txt
+pre-commit install
+```
+
+To run on all files: `pre-commit run --all-files`. Config lives in `Docker/pyproject.toml` (Black, isort, pydocstyle), `Docker/.flake8` (flake8), and `Docker/.yamllint` (yamllint).
+
 ### Pre-installed Software
 - ROS2 Jazzy Desktop
 - Python 3 with pip
