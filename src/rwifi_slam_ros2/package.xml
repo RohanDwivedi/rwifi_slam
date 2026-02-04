@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>rwifi_nvblox_slam_ros2</name>
+  <name>rwifi_slam_ros2</name>
   <version>0.7.0</version>
-  <description>WiFi localisation, nvblox mapping for Robots in ambient environment</description>
+  <description>Range WiFi SLAM ROS2 package for SLAM in indoor environment</description>
   <maintainer email="myemail.rohan@gmail.com">Rohan Dwivedi</maintainer>
   <license>Apache 2.0</license>
 

@@ -1,10 +1,10 @@
-# rwifi_nvblox_slam
+# rwifi_slam
 
-WiFi based Simultaneous Localization and Mapping (SLAM) system for ambient robotics navigation with integrated nvblox for maps.
+WiFi based Simultaneous Localization and Mapping (SLAM) system for indoor environments
 
 ## Overview
 
-rwifi_nvblox_slam is a WiFi based ROS2-based SLAM system that combines WiFi-based localization with nvblox for mapping in ambient environments.
+rwifi_slam is a WiFi based SLAM system for localization and mapping in indoor environments.
 The project provides a complete development environment including Docker containers, Isaac Sim integration for simulation, 
 and ROS2 packages for real-world deployment.
 
@@ -79,7 +79,7 @@ Or using VS Code Dev Containers:
 ## Project Structure
 
 ```
-rwifi_nvblox_slam/
+rwifi_slam/
 ├── Docker/                 # Docker configuration files
 │   ├── dockerfile.dev      # Development container Dockerfile
 │   ├── dockerfile.rel      # Release container Dockerfile
@@ -91,7 +91,7 @@ rwifi_nvblox_slam/
 │   ├── install-docker.sh
 │   └── install_nvidia_isaac_sim.sh
 ├── src/
-│   ├── rwifi_nvblox_slam_ros2/    # Main ROS2 package
+│   ├── rwifi_slam_ros2/    # Main ROS2 package
 │   └── simulation/        # Isaac Sim simulation code
 │       └── isaac_sim_dev/ # Isaac Sim development environment
 └── .devcontainer/         # VS Code Dev Container configuration
@@ -171,7 +171,7 @@ The simulation environment uses NVIDIA Isaac Sim 6.0 for high-fidelity robot sim
 
 ## ROS2 Package
 
-The main ROS2 package `rwifi_nvblox_slam_ros2` provides SLAM functionality. See [src/rwifi_nvblox_slam_ros2/README.md](src/rwifi_nvblox_slam_ros2/README.md) for package-specific documentation.
+The main ROS2 package `rwifi_slam_ros2` provides SLAM functionality. See [src/rwifi_slam_ros2/README.md](src/rwifi_slam_ros2/README.md) for package-specific documentation.
 
 ## Troubleshooting
 
@@ -213,7 +213,5 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 
 - NVIDIA Isaac Sim team for the simulation platform
 - ROS2 community for the robotics framework
-- nvblox team 
-- rwifi_nvblox_slam a ros2 package based on 
-WiFiSLAM: Effective WiFi Ranging based SLAM System in Ambient Environments
-Bo Wei1∗, Mingcen Gao2, Chengwen Luo3, Sen Wang4, Jin Zhang3
+- rWiFiSLAM: Effective WiFi Ranging based SLAM System in Ambient Environments
+  Bo Wei1∗, Mingcen Gao2, Chengwen Luo3, Sen Wang4, Jin Zhang3

@@ -1,5 +1,5 @@
 {
-    "name": "rwifi_nvblox_slam_ros2 Dev Container",
+    "name": "rwifi_slam_ros2 Dev Container",
     "dockerComposeFile": "../Docker/compose.yaml",
     "service": "dev",
     "runServices": ["dev"],

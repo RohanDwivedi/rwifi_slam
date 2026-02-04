@@ -1,11 +1,11 @@
-"""Setup for rwifi_nvblox_slam_ros2: Wi-Fi RTT + nvblox SLAM launch and config."""
+"""Setup for rwifi_slam_ros2: Wi-Fi RTT SLAM launch and config."""
 
 import os
 from glob import glob
 
 from setuptools import find_packages, setup
 
-package_name = "rwifi_nvblox_slam_ros2"
+package_name = "rwifi_slam_ros2"
 
 setup(
     name=package_name,
@@ -30,7 +30,7 @@ setup(
     zip_safe=True,
     maintainer="Rohan Dwivedi",
     maintainer_email="myemail.rohan@gmail.com",
-    description=("WiFi localisation, nvblox mapping for Robots in the ambient environment"),
+    description=("WiFi localisation and mapping for Robots in the ambient environment"),
     license="Apache 2.0",
     extras_require={
         "test": [
