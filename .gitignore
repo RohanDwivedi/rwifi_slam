@@ -9,5 +9,8 @@ src/simulation/isaac_sim_dev/isaac-sim-6.0/
 # Python
 __pycache__/
 
+# Pre-commit
+.pre-commit-cache/
+
 # IDE
 .vscode/

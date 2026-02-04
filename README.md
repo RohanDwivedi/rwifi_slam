@@ -99,6 +99,17 @@ rwifi_nvblox_slam/
 
 ## Development
 
+### Pre-commit (formatting & linting)
+
+Install hooks to run **Black** (formatting), **isort** (import sorting), **flake8** (linting), **pydocstyle** (docstrings), and **yamllint** (YAML) before each commit:
+
+```bash
+pip install -r Docker/requirements-dev.txt
+pre-commit install
+```
+
+Run on all files: `pre-commit run --all-files`. Configuration: `Docker/pyproject.toml`, `Docker/.flake8`.
+
 ### Building ROS2 Packages
 
 Inside the development container:

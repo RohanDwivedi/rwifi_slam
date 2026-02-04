@@ -1,5 +1,4 @@
-"""
-Entrypoint for Isaac Sim environment for Wi-Fi RTT / wild_slam_ros2 simulation.
+"""Entrypoint for Isaac Sim environment for Wi-Fi RTT / wild_slam_ros2 simulation.
 
 Loads config, spawns scene/robot/APs, precomputes NLOS map, and runs the sim loop.
 """

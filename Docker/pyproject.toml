@@ -34,5 +34,7 @@ skip_glob = [
 ]
 
 [tool.pydocstyle]
+convention = "google"
+add_ignore = ["D100", "D104"]
 match-dir = '^(?!.*(\.eggs|\.git|\.hg|\.mypy_cache|\.tox|\.venv|build|dist|isaac-sim-6\.0|__pycache__)).*'
 
