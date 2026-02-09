@@ -14,30 +14,30 @@ setup(
     data_files=[
         (
             "share/ament_index/resource_index/packages",
-            ["resource/" + package_name],
+            [os.path.join("resource", package_name)],
         ),
-        ("share/" + package_name, ["package.xml"]),
+        (os.path.join("share", package_name), ["package.xml"]),
         (
             os.path.join("share", package_name, "launch"),
             glob("launch/*.launch.py"),
         ),
         (
             os.path.join("share", package_name, "config"),
-            glob("config/*.yaml"),
+            glob("config/*.yaml") + glob("config/*.rviz"),
         ),
     ],
-    install_requires=["setuptools"],
+    install_requires=["scipy", "numpy", "setuptools"],
     zip_safe=True,
     maintainer="Rohan Dwivedi",
     maintainer_email="myemail.rohan@gmail.com",
-    description=("WiFi localisation and mapping for Robots in the ambient environment"),
-    license="Apache 2.0",
+    description="WiFi localisation and mapping for robots in ambient environments.",
+    license="Apache-2.0",
     extras_require={
-        "test": [
-            "pytest",
-        ],
+        "test": ["pytest"],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "rwifi_slam_node = rwifi_slam_ros2.rwifi_slam_ros2_node:main",
+        ],
     },
 )

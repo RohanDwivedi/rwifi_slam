@@ -1,10 +1,11 @@
 ---
 robot:
   name: nova_carter
-  usd_path: "/Isaac/Samples/ROS2/Robots/Nova_Carter_ROS.usd"
+  usd_path: "/ros2_ws/src/simulation/isaac_sim_dev/assets/robots/nova_carter_ROS_rgbd.usda"
   spawn_point:
     position: [0.0, 0.0, 0.0]
     orientation: [0.0, 0.0, 0.0, 1.0]
+  # Z height for NLOS precompute grid; must match odom→chassis_wifi transform z at runtime.
   antenna_height: 0.6
 
 scene:
