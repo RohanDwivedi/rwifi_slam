@@ -1,0 +1,545 @@
+#usda 1.0
+(
+    defaultPrim = "Root"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "Root"
+{
+    def "nova_carter_ROS_rgbd" (
+        prepend references = @https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/Samples/ROS2/Robots/Nova_Carter_ROS.usd@
+        variants = {
+            string Configuration = "No_Internals"
+            string Physics = "Physics_Base"
+            string Sensors = "All_Sensors"
+        }
+    )
+    {
+        over "chassis_link"
+        {
+            over "sensors"
+            {
+                over "chassis_imu"
+                {
+                    double3 xformOp:translate = (-0.21848, 0.02446, 0.15643)
+
+                    over "Imu_Sensor"
+                    {
+                        custom string isaac:nameOverride (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
+                        int angularVelocityFilterWidth = 1
+                        int linearAccelerationFilterWidth = 1
+                        int orientationFilterWidth = 1
+                    }
+                }
+
+                def Xform "RealsenseD455" (
+                    prepend references = @https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/Sensors/RealSense/D455/rsd455.usd@
+                )
+                {
+                    quatd xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (1, 1, 1)
+                    double3 xformOp:translate = (0.12003495619575798, 0, 0.3454536404523012)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                    over "RSD455" (
+                        delete apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI"]
+                    )
+                    {
+                        over "Camera_Pseudo_Depth" (
+                            prepend apiSchemas = ["OmniRtxCameraAutoExposureAPI_1", "OmniRtxCameraExposureAPI_1"]
+                        )
+                        {
+                            float exposure:responsivity = 1.1026709
+                            float exposure:time = 0.02
+                            float verticalAperture = 2.054531
+                            quatd xformOp:orient = (0.5, 0.5, 0.5, 0.5)
+                            double3 xformOp:translate = (0, 0, 0)
+                            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                        }
+
+                        over "Imu_Sensor" (
+                            active = false
+                        )
+                        {
+                        }
+                    }
+                }
+
+                over "front_hawk" (
+                    active = false
+                    variants = {
+                        string ROS = "Disabled"
+                    }
+                )
+                {
+                }
+
+                over "left_hawk" (
+                    active = false
+                    variants = {
+                        string ROS = "Disabled"
+                    }
+                )
+                {
+                }
+
+                over "right_hawk" (
+                    active = false
+                    variants = {
+                        string ROS = "Disabled"
+                    }
+                )
+                {
+                }
+
+                over "back_hawk" (
+                    active = false
+                    variants = {
+                        string ROS = "Disabled"
+                    }
+                )
+                {
+                }
+
+                over "front_RPLidar" (
+                    active = false
+                    variants = {
+                        string ROS = "Disabled"
+                    }
+                )
+                {
+                }
+
+                over "rear_RPLidar" (
+                    active = false
+                    variants = {
+                        string ROS = "Disabled"
+                    }
+                )
+                {
+                }
+
+                over "XT_32" (
+                    active = false
+                    variants = {
+                        string ROS = "Disabled"
+                    }
+                )
+                {
+                }
+
+                over "front_owl" (
+                    active = false
+                    variants = {
+                        string ROS = "disabled"
+                    }
+                )
+                {
+                }
+
+                over "left_owl" (
+                    active = false
+                    variants = {
+                        string ROS = "disabled"
+                    }
+                )
+                {
+                }
+
+                over "right_owl" (
+                    active = false
+                    variants = {
+                        string ROS = "disabled"
+                    }
+                )
+                {
+                }
+
+                over "back_owl" (
+                    active = false
+                    variants = {
+                        string ROS = "disabled"
+                    }
+                )
+                {
+                }
+
+                def Xform "chassis_wifi"
+                {
+                    quatd xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (1, 1, 1)
+                    double3 xformOp:translate = (0, 0, 0.6)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                    def "unify_ap" (
+                        prepend payload = @../sensors/wifi_access_point/unify_ap.usda@
+                    )
+                    {
+                        quatd xformOp:orient = (1, 0, 0, 0)
+                        double3 xformOp:scale = (1, 1, 1)
+                        double3 xformOp:scale:unitsResolve = (0.1, 0.1, 0.1)
+                        double3 xformOp:translate = (0, 0, 0)
+                        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale", "xformOp:scale:unitsResolve"]
+                    }
+                }
+            }
+        }
+
+        over "wheel_left"
+        {
+        }
+
+        over "wheel_right"
+        {
+        }
+
+        over "caster_frame_base"
+        {
+        }
+
+        over "caster_swivel_left"
+        {
+        }
+
+        over "caster_swivel_right"
+        {
+        }
+
+        over "caster_wheel_left"
+        {
+        }
+
+        over "caster_wheel_right"
+        {
+        }
+
+        over "joint_caster_base"
+        {
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "joint_swing_left"
+        {
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "joint_swing_right"
+        {
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "joint_caster_left"
+        {
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "joint_caster_right"
+        {
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "joint_wheel_left"
+        {
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "joint_wheel_right"
+        {
+            float state:angular:physics:position = 0
+            float state:angular:physics:velocity = 0
+        }
+
+        over "transform_tree_odometry"
+        {
+            over "ros2_publish_odometry"
+            {
+                uniform float2 ui:nodegraph:node:pos = (-127.416695, 707.5)
+            }
+
+            over "tf_tree_base_link_to_sensors"
+            {
+                custom rel inputs:targetPrims = [
+                    </Root/nova_carter_ROS_rgbd/chassis_link/sensors/chassis_imu/Imu_Sensor>,
+                    </Root/nova_carter_ROS_rgbd/chassis_link/sensors/RealsenseD455/RSD455/Camera_Pseudo_Depth>,
+                    </Root/nova_carter_ROS_rgbd/chassis_link/sensors/chassis_wifi>,
+                ]
+            }
+        }
+
+        over "differential_drive" (
+            active = true
+        )
+        {
+            over "joint_name_array"
+            {
+                custom token inputs:input0
+                delete token inputs:input0.connect = </Root/nova_carter_ROS_rgbd/differential_drive/joint_wheel_left_name.inputs:value>
+                prepend token inputs:input0.connect = </Root/nova_carter_ROS_rgbd/differential_drive/joint_wheel_left_name.inputs:value>
+                custom token inputs:input1
+                delete token inputs:input1.connect = </Root/nova_carter_ROS_rgbd/differential_drive/joint_wheel_right_name.inputs:value>
+                prepend token inputs:input1.connect = </Root/nova_carter_ROS_rgbd/differential_drive/joint_wheel_right_name.inputs:value>
+            }
+        }
+
+        def OmniGraph "pseudo_depth" (
+            active = true
+        )
+        {
+            token evaluationMode = "Automatic"
+            token evaluator:type = "execution"
+            token fabricCacheBacking = "Shared"
+            int2 fileFormatVersion = (1, 9)
+            token pipelineStage = "pipelineStageSimulation"
+
+            def OmniGraphNode "on_playback_tick" (
+                prepend apiSchemas = ["NodeGraphNodeAPI"]
+            )
+            {
+                token node:type = "omni.graph.action.OnPlaybackTick"
+                int node:typeVersion = 2
+                custom double outputs:deltaSeconds
+                custom double outputs:frame
+                custom uint outputs:tick (
+                    customData = {
+                        bool isExecution = 1
+                    }
+                )
+                custom double outputs:time
+                uniform token ui:nodegraph:node:expansionState = "open"
+                uniform float2 ui:nodegraph:node:pos = (-1783.1202, -584.9215)
+            }
+
+            def OmniGraphNode "ros2_context" (
+                prepend apiSchemas = ["NodeGraphNodeAPI"]
+            )
+            {
+                custom uchar inputs:domain_id
+                custom bool inputs:useDomainIDEnvVar
+                token node:type = "isaacsim.ros2.bridge.ROS2Context"
+                int node:typeVersion = 2
+                custom uint64 outputs:context
+                uniform token ui:nodegraph:node:expansionState = "open"
+                uniform float2 ui:nodegraph:node:pos = (-799.94305, -341.46628)
+            }
+
+            def OmniGraphNode "left_camera_render_product" (
+                prepend apiSchemas = ["NodeGraphNodeAPI"]
+            )
+            {
+                custom rel inputs:cameraPrim = </Root/nova_carter_ROS_rgbd/chassis_link/sensors/RealsenseD455/RSD455/Camera_Pseudo_Depth> (
+                    customData = {
+                        dictionary omni = {
+                            dictionary graph = {
+                                string relType = "target"
+                            }
+                        }
+                    }
+                )
+                custom bool inputs:enabled
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </Root/nova_carter_ROS_rgbd/pseudo_depth/on_stage_event.outputs:execOut>
+                prepend uint inputs:execIn.connect = </Root/nova_carter_ROS_rgbd/pseudo_depth/isaac_run_one_simualtion_frame.outputs:step>
+                custom uint inputs:height = 640
+                custom uint inputs:width = 480
+                token node:type = "isaacsim.core.nodes.IsaacCreateRenderProduct"
+                int node:typeVersion = 2
+                custom uint outputs:execOut (
+                    customData = {
+                        bool isExecution = 1
+                    }
+                )
+                custom token outputs:renderProductPath
+                uniform token ui:nodegraph:node:expansionState = "open"
+                uniform float2 ui:nodegraph:node:pos = (-892.54114, 104.07273)
+            }
+
+            def OmniGraphNode "left_camera_publish_image" (
+                prepend apiSchemas = ["NodeGraphNodeAPI"]
+            )
+            {
+                custom uint64 inputs:context
+                prepend uint64 inputs:context.connect = </Root/nova_carter_ROS_rgbd/pseudo_depth/ros2_context.outputs:context>
+                custom bool inputs:enabled
+                custom bool inputs:enableSemanticLabels = 0
+                custom uint inputs:execIn
+                prepend uint inputs:execIn.connect = </Root/nova_carter_ROS_rgbd/pseudo_depth/left_camera_render_product.outputs:execOut>
+                custom string inputs:frameId = "Camera_Pseudo_Depth"
+                prepend string inputs:frameId.connect = </Root/nova_carter_ROS_rgbd/pseudo_depth/left_camera_frame_id.inputs:value>
+                custom uint inputs:frameSkipCount
+                custom string inputs:nodeNamespace = "camera_depth"
+                prepend string inputs:nodeNamespace.connect = </Root/nova_carter_ROS_rgbd/pseudo_depth/camera_namespace.inputs:value>
+                custom string inputs:qosProfile
+                prepend string inputs:qosProfile.connect = </Root/nova_carter_ROS_rgbd/pseudo_depth/ros2_qos_profile.outputs:qosProfile>
+                custom uint64 inputs:queueSize
+                custom token inputs:renderProductPath
+                delete token inputs:renderProductPath.connect = </Root/nova_carter_ROS_rgbd/pseudo_depth/left_camera_render_product.outputs:renderProductPath>
+                prepend token inputs:renderProductPath.connect = [
+                    </Root/nova_carter_ROS_rgbd/pseudo_depth/right_camera_render_product.outputs:renderProductPath>,
+                    </Root/nova_carter_ROS_rgbd/pseudo_depth/left_camera_render_product.outputs:renderProductPath>,
+                ]
+                custom bool inputs:resetSimulationTimeOnStop = 1
+                custom string inputs:semanticLabelsTopicName = "semantic_labels"
+                custom float2 inputs:stereoOffset
+                custom string inputs:topicName = "depth_pcl"
+                custom token inputs:type = "depth_pcl" (
+                    allowedTokens = ["rgb", "depth", "depth_pcl", "instance_segmentation", "semantic_segmentation", "bbox_2d_tight", "bbox_2d_loose", "bbox_3d", "camera_info"]
+                )
+                custom bool inputs:useSystemTime
+                custom token inputs:viewport
+                token node:type = "isaacsim.ros2.bridge.ROS2CameraHelper"
+                int node:typeVersion = 2
+                uniform token ui:nodegraph:node:expansionState = "open"
+                uniform float2 ui:nodegraph:node:pos = (-327.78925, -38.334545)
+            }
+
+            def OmniGraphNode "isaac_run_one_simualtion_frame" (
+                prepend apiSchemas = ["NodeGraphNodeAPI"]
+            )
+            {
+                custom uint inputs:execIn (
+                    customData = {
+                        bool isExecution = 1
+                    }
+                )
+                prepend uint inputs:execIn.connect = </Root/nova_carter_ROS_rgbd/pseudo_depth/on_playback_tick.outputs:tick>
+                token node:type = "isaacsim.core.nodes.OgnIsaacRunOneSimulationFrame"
+                int node:typeVersion = 1
+                custom uint outputs:step (
+                    customData = {
+                        bool isExecution = 1
+                    }
+                )
+                uniform token ui:nodegraph:node:expansionState = "open"
+                uniform float2 ui:nodegraph:node:pos = (-1281.5807, -211.34674)
+            }
+
+            def OmniGraphNode "ros2_qos_profile" (
+                prepend apiSchemas = ["NodeGraphNodeAPI"]
+            )
+            {
+                custom token inputs:createProfile = "Default for publishers/subscribers" (
+                    allowedTokens = ["Default for publishers/subscribers", "Services", "Sensor Data", "System Default", "Custom"]
+                )
+                custom double inputs:deadline
+                custom uint64 inputs:depth = 5
+                custom token inputs:durability (
+                    allowedTokens = ["systemDefault", "transientLocal", "volatile", "unknown"]
+                )
+                custom token inputs:history (
+                    allowedTokens = ["systemDefault", "keepLast", "keepAll", "unknown"]
+                )
+                custom double inputs:leaseDuration
+                custom double inputs:lifespan
+                custom token inputs:liveliness (
+                    allowedTokens = ["systemDefault", "automatic", "manualByTopic", "unknown"]
+                )
+                custom token inputs:reliability = "bestEffort" (
+                    allowedTokens = ["systemDefault", "reliable", "bestEffort", "unknown"]
+                )
+                token node:type = "isaacsim.ros2.bridge.ROS2QoSProfile"
+                int node:typeVersion = 1
+                custom string outputs:qosProfile
+                uniform token ui:nodegraph:node:expansionState = "open"
+                uniform float2 ui:nodegraph:node:pos = (-899.61786, 374.69366)
+            }
+        }
+
+        over "ros_lidars" (
+            active = false
+        )
+        {
+            over "publish_front_2d_lidar_scan"
+            {
+                custom bool inputs:enableObjectIdMap
+                custom string inputs:objectIdMapTopicName
+                custom token[] inputs:selectedMetadata
+            }
+
+            over "publish_front_3d_lidar_scan"
+            {
+                custom bool inputs:enableObjectIdMap
+                custom string inputs:objectIdMapTopicName
+                custom token[] inputs:selectedMetadata
+            }
+
+            over "publish_back_2d_lidar_scan"
+            {
+                custom bool inputs:enableObjectIdMap
+                custom string inputs:objectIdMapTopicName
+                custom token[] inputs:selectedMetadata
+            }
+        }
+
+        over "front_hawk" (
+            active = false
+        )
+        {
+        }
+
+        over "right_hawk" (
+            active = false
+        )
+        {
+        }
+
+        over "left_hawk" (
+            active = false
+        )
+        {
+        }
+
+        over "back_hawk" (
+            active = false
+        )
+        {
+        }
+
+        over "front_owl" (
+            active = false
+        )
+        {
+        }
+
+        over "back_owl" (
+            active = false
+        )
+        {
+        }
+
+        over "left_owl" (
+            active = false
+        )
+        {
+        }
+
+        over "right_owl" (
+            active = false
+        )
+        {
+        }
+
+        over "chassis_imu"
+        {
+            over "node_namespace"
+            {
+                uniform float2 ui:nodegraph:node:pos = (-250.56161, 533.9298)
+            }
+
+            over "ros2_publish_imu"
+            {
+                uniform float2 ui:nodegraph:node:pos = (-114.24548, -0.701893)
+            }
+        }
+    }
+}
+

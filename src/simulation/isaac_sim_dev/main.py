@@ -30,6 +30,7 @@ arguments.add_argument(
     help="Visualize the NLOS map (AP coverage) in the viewport",
 )
 
+
 args = arguments.parse_args()
 
 config_file: str = args.config
@@ -69,11 +70,30 @@ enable_extension("isaacsim.ros2.bridge")
 
 world = World(stage_units_in_meters=1.0)
 
-scene_path = get_assets_root_path() + scene["usd_path"]
+# Use local path if it exists; otherwise treat as relative to Isaac assets root.
+_scene_usd = scene["usd_path"]
+if os.path.isfile(_scene_usd):
+    scene_path = os.path.abspath(_scene_usd)
+elif not os.path.isabs(_scene_usd):
+    _local = os.path.normpath(os.path.join(os.path.dirname(__file__), _scene_usd))
+    scene_path = _local if os.path.isfile(_local) else get_assets_root_path() + "/" + _scene_usd
+else:
+    scene_path = get_assets_root_path() + _scene_usd
+
+# Use local path if it exists; otherwise treat as relative to Isaac assets root.
 scene_prim_path = "/World/" + scene["name"]
 scene_prim = add_reference_to_stage(usd_path=scene_path, path=scene_prim_path)
 
-robot_path = get_assets_root_path() + robot["usd_path"]
+# Use local path if it exists; otherwise treat as relative to Isaac assets root.
+_robot_usd = robot["usd_path"]
+if os.path.isfile(_robot_usd):
+    robot_path = os.path.abspath(_robot_usd)
+elif not os.path.isabs(_robot_usd):
+    _local = os.path.normpath(os.path.join(os.path.dirname(__file__), _robot_usd))
+    robot_path = _local if os.path.isfile(_local) else get_assets_root_path() + "/" + _robot_usd
+else:
+    robot_path = get_assets_root_path() + _robot_usd
+
 robot_prim_path = "/World/" + robot["name"]
 
 robot_spawn = robot.get("spawn_point", {})

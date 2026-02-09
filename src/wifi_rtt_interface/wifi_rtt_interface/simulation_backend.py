@@ -79,10 +79,9 @@ class SimulationBackend:
         self._grid_kdtree: KDTree | None = None
         self._grid_cell_centers: np.ndarray | None = None
 
-        self.world_frame = node.get_parameter("world_frame").value
-        self.base_link_frame = node.get_parameter("base_link_frame").value
+        self.odom_frame = node.get_parameter("odom_frame").value
+        self.wifi_frame = node.get_parameter("wifi_frame").value
         self.grid_cell_resolution = float(node.get_parameter("simulation_isaac_sim.grid_cell_resolution").value)
-        self.antenna_height = float(node.get_parameter("simulation_isaac_sim.antenna_height").value)
 
         if self.simulation_type == "simulation_isaac_sim":
             nlos_map_path = node.get_parameter("simulation_isaac_sim.nlos_map_file").value
@@ -217,18 +216,16 @@ class SimulationBackend:
         """
         observations: list[APRange] = []
 
-        transform = self._get_transform(self.world_frame, self.base_link_frame)
+        transform = self._get_transform(self.odom_frame, self.wifi_frame)
         if transform is None:
-            self.node.get_logger().error("Failed to get transform from world to base_link")
+            self.node.get_logger().error("Failed to get transform from odom_frame to wifi_frame")
             return []
 
-        robot_position = np.array(
-            [
-                transform.transform.translation.x,
-                transform.transform.translation.y,
-            ]
-        )
-        nearest_grid_cell_index = self._get_nearest_grid_cell_index(robot_position)
+        t = transform.transform.translation
+        robot_position_2d = np.array([t.x, t.y])
+        robot_3d = np.array([t.x, t.y, t.z])
+
+        nearest_grid_cell_index = self._get_nearest_grid_cell_index(robot_position_2d)
         if nearest_grid_cell_index is None:
             return []
 
@@ -241,8 +238,6 @@ class SimulationBackend:
             hardware_bias = nlos_map.access_point_hardware_bias
 
             measurement_noise = (RNG.standard_t(df=3.0) * 0.4) + 0.2
-
-            robot_3d = np.append(robot_position, self.antenna_height)
             true_distance = float(np.linalg.norm(access_point_position - robot_3d))
             measured_distance = true_distance + nlos_bias + measurement_noise + hardware_bias
 
@@ -263,11 +258,12 @@ class SimulationBackend:
     def publish_observation(self) -> None:
         """Fetch the current RTT observation, wrap it in a header, and publish.
 
-        Uses the node clock for the header stamp and world_frame for frame_id.
+        Uses the node clock for the header stamp and wifi_frame for frame_id
+        (sensor frame: where the measurement was taken, consistent with TF).
         """
         observations = self._get_rtt_observations()
         header = Header()
         header.stamp = self.clock.now().to_msg()
-        header.frame_id = self.world_frame
+        header.frame_id = self.wifi_frame
         msg = APRangeObservation(header=header, observations=observations)
         self._publisher.publish(msg)
