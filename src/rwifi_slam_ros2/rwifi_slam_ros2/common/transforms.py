@@ -7,7 +7,7 @@ import rclpy
 from geometry_msgs.msg import Quaternion, Vector3
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import Imu
-from tf2_ros import Buffer, TransformException
+from tf2_ros import Buffer, TransformException, TransformStamped
 
 
 def yaw_to_quaternion(yaw: float) -> Quaternion:
@@ -30,17 +30,21 @@ def yaw_to_quaternion(yaw: float) -> Quaternion:
 
 
 def quaternion_to_yaw(q: Quaternion) -> float:
-    """Extract the yaw angle from a quaternion.
+    """Extract the yaw angle (rotation about Z) from a quaternion.
 
-    Assumes roll and pitch are zero or negligible (planar motion).
+    Works for arbitrary 3D orientations;
 
     Args:
-        q: Input quaternion.
+        q: Input quaternion (w, x, y, z).
 
     Returns:
         Yaw angle in radians on ``(-pi, pi]``.
     """
-    return float(2.0 * np.arctan2(q.z, q.w))
+    # yaw = atan2(2*(w*z + x*y), 1 - 2*(y^2 + z^2))
+    siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+    cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+    yaw = np.arctan2(siny_cosp, cosy_cosp)
+    return float(yaw)
 
 
 def wrap_angle(angle: float) -> float:
@@ -100,56 +104,24 @@ def quaternion_multiply(q1: Quaternion, q2: Quaternion) -> Quaternion:
     return Quaternion(x=xyzw[0], y=xyzw[1], z=xyzw[2], w=xyzw[3])
 
 
-def transform_imu(
-    tf_buffer: Buffer,
-    msg: Imu,
-    from_frame: str,
-    to_frame: str,
-    *,
-    timeout: rclpy.duration.Duration | None = None,
-    time: rclpy.time.Time | None = None,
-) -> Imu:
-    """Transform an IMU message from one frame to another.
-
-    Orientation is composed with the frame rotation; angular velocity and
-    linear acceleration are rotated into the target frame.
+def transform_imu_with_tf(msg: Imu, tf: TransformStamped, to_frame: str) -> Imu:
+    """Transform an IMU message with a TF2 transform.
 
     Args:
-        tf_buffer: TF2 buffer to look up transforms.
         msg: Input IMU message.
-        from_frame: Source TF frame.
-        to_frame: Target TF frame.
-        timeout: How long to wait for the transform. Defaults to zero
-            (non-blocking).
-        time: Time at which to look up the transform.  Defaults to the
-            message header stamp.  Pass ``rclpy.time.Time()`` (time-zero)
-            to use the latest available transform - useful for static or
-            quasi-static frame relationships (e.g. a rigidly-mounted IMU).
+        tf: TF2 transform.
+        to_frame: Target frame.
 
     Returns:
-        New ``Imu`` message expressed in *to_frame*.
-
-    Raises:
-        TransformException: If the requested transform is unavailable.
+        Transformed IMU message.
     """
-    if timeout is None:
-        timeout = rclpy.duration.Duration(seconds=0)
-    lookup_time = time if time is not None else msg.header.stamp
-    try:
-        transform = tf_buffer.lookup_transform(
-            to_frame,
-            from_frame,
-            lookup_time,
-            timeout=timeout,
-        )
-    except TransformException as e:
-        raise TransformException(f"Transform {from_frame} -> {to_frame} unavailable: {e}") from e
-
-    rot = transform.transform.rotation
+    rot = tf.transform.rotation
     rot_q = Quaternion(x=rot.x, y=rot.y, z=rot.z, w=rot.w)
 
     out = Imu()
-    out.header = msg.header
+
+    out.header.stamp.sec = msg.header.stamp.sec
+    out.header.stamp.nanosec = msg.header.stamp.nanosec
     out.header.frame_id = to_frame
     out.orientation = quaternion_multiply(rot_q, msg.orientation)
     out.orientation_covariance = msg.orientation_covariance
@@ -157,4 +129,32 @@ def transform_imu(
     out.angular_velocity_covariance = msg.angular_velocity_covariance
     out.linear_acceleration = rotate_vector_by_quaternion(rot_q, msg.linear_acceleration)
     out.linear_acceleration_covariance = msg.linear_acceleration_covariance
+
     return out
+
+
+def get_static_transform(
+    tf_buffer: Buffer,
+    from_frame: str,
+    to_frame: str,
+) -> TransformStamped:
+    """Get a static transform between two frames.
+
+    Args:
+        tf_buffer: TF2 buffer to look up transforms.
+        from_frame: Source TF frame.
+        to_frame: Target TF frame.
+        timeout: How long to wait for the transform. Defaults to zero (non-blocking).
+        timestamp: Timestamp to look up the transform. Defaults to the current time.
+    """
+    try:
+        transform = tf_buffer.lookup_transform(
+            to_frame,
+            from_frame,
+            rclpy.time.Time(),
+            timeout=rclpy.duration.Duration(seconds=0),
+        )
+    except TransformException as e:
+        raise TransformException(f"Transform {from_frame} -> {to_frame} unavailable: {e}") from e
+
+    return transform
