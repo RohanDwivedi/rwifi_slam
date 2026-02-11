@@ -5,7 +5,7 @@ Each parameter is declared with a default value and a
 valid range.
 """
 
-from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor, ParameterType
+from rcl_interfaces.msg import IntegerRange, ParameterDescriptor, ParameterType
 from rclpy.node import Node
 
 
@@ -87,7 +87,7 @@ def declare_parameters(node: Node) -> None:
         ParameterDescriptor(
             description=(
                 "Initial covariance diagonal "
-                "[X, Y, VX, VY, YAW, b_gz, b_ax, b_ay]. "
+                "[X, Y, VX, VY, YAW, b_ax, b_ay, b_gz]. "
                 "Must be a non-negative array of length 8."
             ),
             type=ParameterType.PARAMETER_DOUBLE_ARRAY,
@@ -96,15 +96,6 @@ def declare_parameters(node: Node) -> None:
     )
 
     # -- Pose estimator: IMU -------------------------------------------
-    node.declare_parameter(
-        "pose_estimator.imu.gravity",
-        9.81,
-        ParameterDescriptor(
-            description=("Gravitational acceleration magnitude (m/s^2) " "for IMU gravity compensation."),
-            type=ParameterType.PARAMETER_DOUBLE,
-            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=20.0, step=0.0)],
-        ),
-    )
     node.declare_parameter(
         "pose_estimator.imu.gyro_noise",
         0.001,
@@ -141,13 +132,13 @@ def declare_parameters(node: Node) -> None:
     # -- Pose estimator: odometry --------------------------------------
     node.declare_parameter(
         "pose_estimator.odometry.meas_noise_covar_diag",
-        [0.01, 0.01, 0.01],
+        [0.01, 0.01, 0.01, 0.01, 0.01],
         ParameterDescriptor(
             description=(
-                "Odometry measurement-noise covariance diagonal " "[X, Y, YAW]. Must be non-negative, length 3."
+                "Odometry measurement-noise covariance diagonal " "[X, Y, VX, VY, YAW]. Must be non-negative, length 5."
             ),
             type=ParameterType.PARAMETER_DOUBLE_ARRAY,
-            array_length=3,
+            array_length=5,
         ),
     )
     node.declare_parameter(

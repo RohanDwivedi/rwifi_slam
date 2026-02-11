@@ -18,6 +18,8 @@
   <exec_depend>wifi_rtt_interface</exec_depend>
   <exec_depend>teleop_twist_keyboard</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>
+  <exec_depend>rviz_imu_plugin</exec_depend>
+  <exec_depend>imu_tools</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

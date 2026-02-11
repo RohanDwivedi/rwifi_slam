@@ -23,11 +23,12 @@ from rwifi_slam_ros2.common import (
     POSE_QOS_PROFILE,
     SENSOR_QOS_PROFILE,
     declare_parameters,
-    transform_imu,
+    get_static_transform,
+    transform_imu_with_tf,
 )
 from rwifi_slam_ros2.include.front_end import PoseEstimator
 from sensor_msgs.msg import Imu, PointCloud2
-from tf2_ros import Buffer, TransformException, TransformListener
+from tf2_ros import Buffer, TransformException, TransformListener, TransformStamped
 from wifi_rtt_msgs.msg import APRangeObservation
 
 
@@ -45,9 +46,15 @@ class WifiSlamNode(LifecycleNode):
 
         self._pose_history: deque[PoseStamped] = deque(maxlen=self.get_parameter("trajectory_keep_history").value)
 
-        # Initialize the pose estimator (EKF-based 2-D pose estimator fusing IMU and wheel odometry)
+        # Initialize the pose estimator
         params = self.get_parameters_by_prefix("pose_estimator")
+        base_frame = self.get_parameter("base_frame")
+        odom_frame = self.get_parameter("odom_frame")
+        params["base_frame"] = base_frame
+        params["odom_frame"] = odom_frame
         self._pose_estimator = PoseEstimator(parameters=params)
+
+        self._cache_static_tf: TransformStamped | None = None
 
     # ------------------------------------------------------------------
     # Lifecycle callbacks
@@ -182,23 +189,25 @@ class WifiSlamNode(LifecycleNode):
 
     def _destroy_subscribers(self) -> None:
         """Destroy all sensor subscriptions."""
-        for sub in (
-            self._odometry_sub,
-            self._imu_sub,
-            self._wifi_rtt_sub,
-            self._depth_sub,
-        ):
-            self.destroy_subscription(sub)
+        if hasattr(self, "_odometry_sub"):
+            self.destroy_subscription(self._odometry_sub)
+        if hasattr(self, "_imu_sub"):
+            self.destroy_subscription(self._imu_sub)
+        if hasattr(self, "_wifi_rtt_sub"):
+            self.destroy_subscription(self._wifi_rtt_sub)
+        if hasattr(self, "_depth_sub"):
+            self.destroy_subscription(self._depth_sub)
 
     def _destroy_publishers(self) -> None:
         """Destroy all lifecycle publishers."""
-        for pub in (
-            self.pose_with_covariance_pub,
-            self.trajectory_pub,
-            self.odom_filtered_pub,
-            self.map_pub,
-        ):
-            self.destroy_publisher(pub)
+        if hasattr(self, "pose_with_covariance_pub"):
+            self.destroy_publisher(self.pose_with_covariance_pub)
+        if hasattr(self, "trajectory_pub"):
+            self.destroy_publisher(self.trajectory_pub)
+        if hasattr(self, "odom_filtered_pub"):
+            self.destroy_publisher(self.odom_filtered_pub)
+        if hasattr(self, "map_pub"):
+            self.destroy_publisher(self.map_pub)
 
     # ------------------------------------------------------------------
     # Sensor callbacks
@@ -213,18 +222,19 @@ class WifiSlamNode(LifecycleNode):
         """Transform IMU into ``base_frame`` and forward to the estimator."""
         from_frame = self.get_parameter("imu_frame").value
         to_frame = self.get_parameter("base_frame").value
-        try:
-            msg = transform_imu(
-                self._tf_buffer,
-                msg,
-                from_frame,
-                to_frame,
-                timeout=rclpy.duration.Duration(seconds=0),
-                time=rclpy.time.Time(),
-            )
-        except TransformException as e:
-            self.get_logger().debug(f"IMU transform not yet available: {e}")
-            return
+
+        if self._cache_static_tf is None:
+            try:
+                self._cache_static_tf = get_static_transform(
+                    self._tf_buffer,
+                    from_frame,
+                    to_frame,
+                )
+            except TransformException as e:
+                self.get_logger().warning(f"IMU transform not yet available: {e}")
+                return
+
+        msg = transform_imu_with_tf(msg, self._cache_static_tf, to_frame)
         self._pose_estimator.push_imu_msg(msg)
         self._publish_odom_filtered()
 
@@ -242,18 +252,11 @@ class WifiSlamNode(LifecycleNode):
 
     def _publish_odom_filtered(self) -> None:
         """Publish the latest fused odometry."""
-        odom_msg = self._pose_estimator.current_odom_filtered_pose
-
-        # Set timestamp if missing or invalid
-        if odom_msg.header.stamp is None:
-            odom_msg.header.stamp = self.get_clock().now().to_msg()
-        elif odom_msg.header.stamp.sec == 0 and odom_msg.header.stamp.nanosec == 0:
-            odom_msg.header.stamp = self.get_clock().now().to_msg()
-
-        odom_msg.header.frame_id = self.get_parameter("odom_frame").value
-        odom_msg.child_frame_id = self.get_parameter("base_frame").value
-
-        self.odom_filtered_pub.publish(odom_msg)
+        try:
+            odom_msg = self._pose_estimator.current_odom_filtered_pose
+            self.odom_filtered_pub.publish(odom_msg)
+        except ValueError as e:
+            self.get_logger().warning(f"Failed to publish filtered odometry: {e}")
 
     def _publish_map(self) -> None:
         """Publish the latest map (not yet implemented)."""
