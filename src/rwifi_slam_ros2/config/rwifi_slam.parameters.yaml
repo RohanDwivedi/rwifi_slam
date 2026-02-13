@@ -11,11 +11,20 @@
     pose_estimator:
       initial_covar_mat_diag: [0.01, 0.01, 0.01, 0.01, 0.27, 0.04, 0.04, 0.0025]
       imu:
-        gyro_noise: 1.0  # rad/s / √Hz
-        accel_noise: 0.5  # m/s² / √Hz
-        gyro_random_walk: 0.0  # rad/s² / √Hz
-        accel_random_walk: 0.0  # m/s³ / √Hz
+        gyro_noise: 1.0 # rad/s / √Hz
+        accel_noise: 0.5 # m/s² / √Hz
+        gyro_random_walk: 0.0 # rad/s² / √Hz
+        accel_random_walk: 0.0 # m/s³ / √Hz
       odometry:
         enabled: true
         # [x, y, vx, vy, yaw] (default if wheel odom doesn't provide covariance)
         meas_noise_covar_diag: [0.01, 0.01, 0.01, 0.01, 0.05]
+    wifi_rtt_clustering:
+      distance_interval: 0.1
+      yaw_interval: 0.0174533 # 1 degree
+      distance_method: euclidean
+      clustering_threshold: 1.0
+      use_ratio_test: true
+      ratio_threshold: 0.8
+      exclude_near_neighbors: true
+      near_neighbor_threshold: 20

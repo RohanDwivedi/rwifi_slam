@@ -140,6 +140,7 @@ def _launch_simulation_and_wifi_node(
         "simulation_isaac_sim.nlos_map_file": (context.launch_configurations["nlos_map_file"]),
     }
 
+    log_level = context.launch_configurations.get("log_level", "info")
     actions.append(
         Node(
             package="wifi_rtt_interface",
@@ -147,6 +148,7 @@ def _launch_simulation_and_wifi_node(
             name="wifi_rtt_publisher",
             output="screen",
             parameters=[wifi_rtt_config, node_params],
+            arguments=["--ros-args", "--log-level", log_level],
         )
     )
 
@@ -173,6 +175,9 @@ def _launch_simulation_and_wifi_node(
                 "odom",
                 "--child-frame-id",
                 "base_link",
+                "--ros-args",
+                "--log-level",
+                log_level,
             ],
         )
     )
@@ -201,6 +206,9 @@ def _launch_simulation_and_wifi_node(
                 "base_link",
                 "--child-frame-id",
                 "chassis_wifi",
+                "--ros-args",
+                "--log-level",
+                log_level,
             ],
         )
     )
@@ -271,6 +279,11 @@ def generate_launch_description() -> LaunchDescription:
                 "antenna_height",
                 default_value="0.6",
                 description=("Z-offset of chassis_wifi from base_link (metres)."),
+            ),
+            DeclareLaunchArgument(
+                "log_level",
+                default_value="info",
+                description=("Log level for nodes: 'debug', 'info', 'warn', 'error', 'fatal'."),
             ),
             OpaqueFunction(function=_launch_simulation_and_wifi_node),
         ]

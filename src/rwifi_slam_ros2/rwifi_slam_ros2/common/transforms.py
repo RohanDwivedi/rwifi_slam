@@ -40,7 +40,6 @@ def quaternion_to_yaw(q: Quaternion) -> float:
     Returns:
         Yaw angle in radians on ``(-pi, pi]``.
     """
-    # yaw = atan2(2*(w*z + x*y), 1 - 2*(y^2 + z^2))
     siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
     cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
     yaw = np.arctan2(siny_cosp, cosy_cosp)
@@ -144,8 +143,12 @@ def get_static_transform(
         tf_buffer: TF2 buffer to look up transforms.
         from_frame: Source TF frame.
         to_frame: Target TF frame.
-        timeout: How long to wait for the transform. Defaults to zero (non-blocking).
-        timestamp: Timestamp to look up the transform. Defaults to the current time.
+
+    Returns:
+        Transform between the frames.
+
+    Raises:
+        TransformException: If the transform is unavailable.
     """
     try:
         transform = tf_buffer.lookup_transform(
