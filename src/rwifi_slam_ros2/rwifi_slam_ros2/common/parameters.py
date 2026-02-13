@@ -5,7 +5,7 @@ Each parameter is declared with a default value and a
 valid range.
 """
 
-from rcl_interfaces.msg import IntegerRange, ParameterDescriptor, ParameterType
+from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor, ParameterType
 from rclpy.node import Node
 
 
@@ -147,5 +147,76 @@ def declare_parameters(node: Node) -> None:
         ParameterDescriptor(
             description="Enable odometry measurements in the EKF.",
             type=ParameterType.PARAMETER_BOOL,
+        ),
+    )
+
+    # -- Wi-Fi RTT clustering -------------------------------------------
+    node.declare_parameter(
+        "wifi_rtt_clustering.distance_interval",
+        0.1,
+        ParameterDescriptor(
+            description=("Minimum distance (in meters) the robot must move before creating a new Wi-Fi RTT keyframe."),
+            type=ParameterType.PARAMETER_DOUBLE,
+        ),
+    )
+    node.declare_parameter(
+        "wifi_rtt_clustering.yaw_interval",
+        0.0174533,  # 1 degree
+        ParameterDescriptor(
+            description=(
+                "Minimum yaw angle change (in radians) the robot must rotate "
+                "before creating a new Wi-Fi RTT keyframe."
+            ),
+            type=ParameterType.PARAMETER_DOUBLE,
+        ),
+    )
+    node.declare_parameter(
+        "wifi_rtt_clustering.distance_method",
+        "euclidean",
+        ParameterDescriptor(
+            description="Distance method for Wi-Fi RTT clustering",
+            type=ParameterType.PARAMETER_STRING,
+            additional_constraints="Options: euclidean",
+        ),
+    )
+    node.declare_parameter(
+        "wifi_rtt_clustering.clustering_threshold",
+        1.0,
+        ParameterDescriptor(
+            description=("Threshold for Wi-Fi RTT clustering"),
+            type=ParameterType.PARAMETER_DOUBLE,
+        ),
+    )
+    node.declare_parameter(
+        "wifi_rtt_clustering.use_ratio_test",
+        True,
+        ParameterDescriptor(
+            description="Use ratio test for Wi-Fi RTT clustering",
+            type=ParameterType.PARAMETER_BOOL,
+        ),
+    )
+    node.declare_parameter(
+        "wifi_rtt_clustering.ratio_threshold",
+        0.8,
+        ParameterDescriptor(
+            description="Ratio threshold for Wi-Fi RTT clustering",
+            type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=1.0, step=0.0)],
+        ),
+    )
+    node.declare_parameter(
+        "wifi_rtt_clustering.exclude_near_neighbors",
+        True,
+        ParameterDescriptor(
+            description="Exclude near neighbors for Wi-Fi RTT clustering",
+            type=ParameterType.PARAMETER_BOOL,
+        ),
+    )
+    node.declare_parameter(
+        "wifi_rtt_clustering.near_neighbor_threshold",
+        10,
+        ParameterDescriptor(
+            description="Threshold for excluding near neighbors for Wi-Fi RTT clustering",
+            type=ParameterType.PARAMETER_INTEGER,
         ),
     )

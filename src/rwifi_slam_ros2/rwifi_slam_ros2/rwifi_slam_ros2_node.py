@@ -27,6 +27,7 @@ from rwifi_slam_ros2.common import (
     transform_imu_with_tf,
 )
 from rwifi_slam_ros2.include.front_end import PoseEstimator
+from rwifi_slam_ros2.include.front_end.wifi_rtt_clustering import WifiRttClustering
 from sensor_msgs.msg import Imu, PointCloud2
 from tf2_ros import Buffer, TransformException, TransformListener, TransformStamped
 from wifi_rtt_msgs.msg import APRangeObservation
@@ -43,6 +44,7 @@ class WifiSlamNode(LifecycleNode):
 
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
+        self._cache_static_tf: TransformStamped | None = None
 
         self._pose_history: deque[PoseStamped] = deque(maxlen=self.get_parameter("trajectory_keep_history").value)
 
@@ -54,7 +56,9 @@ class WifiSlamNode(LifecycleNode):
         params["odom_frame"] = odom_frame
         self._pose_estimator = PoseEstimator(parameters=params)
 
-        self._cache_static_tf: TransformStamped | None = None
+        # Initialize the Wi-Fi RTT clustering module
+        params = self.get_parameters_by_prefix("wifi_rtt_clustering")
+        self._wifi_rtt_clustering = WifiRttClustering(parameters=params, pose_estimator=self._pose_estimator)
 
     # ------------------------------------------------------------------
     # Lifecycle callbacks
@@ -243,8 +247,8 @@ class WifiSlamNode(LifecycleNode):
         return
 
     def _wifi_rtt_callback(self, msg: APRangeObservation) -> None:
-        """Handle Wi-Fi RTT range observation (not yet implemented)."""
-        return
+        """Handle Wi-Fi RTT range observation."""
+        self._wifi_rtt_clustering.push_wifi_rtt_msg(msg)
 
     # ------------------------------------------------------------------
     # Publishers
