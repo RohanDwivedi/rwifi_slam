@@ -12,32 +12,36 @@ from __future__ import annotations
 
 from collections import deque
 
+import numpy as np
 import rclpy
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from rclpy.lifecycle import State, TransitionCallbackReturn
 from rclpy.lifecycle.node import LifecycleNode
+from rclpy.logging import get_logger_effective_level, set_logger_level
 from rclpy.subscription import Subscription
 from rwifi_slam_ros2.common import (
     MAP_QOS_PROFILE,
     POSE_QOS_PROFILE,
     SENSOR_QOS_PROFILE,
+    Graph,
+    Node,
     declare_parameters,
     get_static_transform,
+    has_robot_moved,
     transform_imu_with_tf,
 )
-from rwifi_slam_ros2.include.front_end import PoseEstimator
-from rwifi_slam_ros2.include.front_end.wifi_rtt_clustering import WifiRttClustering
+from rwifi_slam_ros2.include.front_end import LoopClosure, PoseEstimator
 from sensor_msgs.msg import Imu, PointCloud2
 from tf2_ros import Buffer, TransformException, TransformListener, TransformStamped
 from wifi_rtt_msgs.msg import APRangeObservation
 
 
 class WifiSlamNode(LifecycleNode):
-    """Lifecycle node that runs the Range WiFi SLAM pipeline."""
+    """Lifecycle node for Range WiFi SLAM: EKF pose estimation, pose graph, loop closure."""
 
     def __init__(self) -> None:
-        """Initialize the Range WiFi SLAM node."""
+        """Initialize node, declare parameters, and create pose estimator, graph, and loop closure."""
         super().__init__("rwifi_slam_node")
 
         declare_parameters(self)
@@ -48,7 +52,9 @@ class WifiSlamNode(LifecycleNode):
 
         self._pose_history: deque[PoseStamped] = deque(maxlen=self.get_parameter("trajectory_keep_history").value)
 
-        # Initialize the pose estimator
+        self._distance_interval = self.get_parameter("distance_interval").value
+        self._yaw_interval = self.get_parameter("yaw_interval").value
+
         params = self.get_parameters_by_prefix("pose_estimator")
         base_frame = self.get_parameter("base_frame")
         odom_frame = self.get_parameter("odom_frame")
@@ -56,13 +62,27 @@ class WifiSlamNode(LifecycleNode):
         params["odom_frame"] = odom_frame
         self._pose_estimator = PoseEstimator(parameters=params)
 
-        # Initialize the Wi-Fi RTT clustering module
-        params = self.get_parameters_by_prefix("wifi_rtt_clustering")
-        self._wifi_rtt_clustering = WifiRttClustering(parameters=params, pose_estimator=self._pose_estimator)
+        self._pose_graph = Graph()
 
-    # ------------------------------------------------------------------
-    # Lifecycle callbacks
-    # ------------------------------------------------------------------
+        params = self.get_parameters_by_prefix("loop_closure")
+        self._loop_closure = LoopClosure(parameters=params, graph=self._pose_graph)
+
+        self._propagate_log_level()
+
+    def _propagate_log_level(self) -> None:
+        """Propagate the node's log level to all class and module loggers used by this package."""
+        node_level = get_logger_effective_level(self.get_logger().name)
+        if node_level is None:
+            return
+        child_logger_names = [
+            "PoseEstimator",
+            "LoopClosure",
+            "rwifi_slam_ros2.common.pose_graph",
+            "rwifi_slam_ros2.common.transforms",
+            "rwifi_slam_ros2.common.utils",
+        ]
+        for name in child_logger_names:
+            set_logger_level(name, node_level)
 
     def on_configure(self, state: State) -> TransitionCallbackReturn:
         """Create subscriptions, publishers, services, and timers.
@@ -137,12 +157,8 @@ class WifiSlamNode(LifecycleNode):
         self._destroy_publishers()
         return TransitionCallbackReturn.SUCCESS
 
-    # ------------------------------------------------------------------
-    # Subscription / publisher setup
-    # ------------------------------------------------------------------
-
     def _init_subscribers(self) -> None:
-        """Create all sensor subscriptions."""
+        """Create subscriptions for odometry, IMU, Wi-Fi RTT, and depth."""
         self._odometry_sub: Subscription = self.create_subscription(
             Odometry,
             "/chassis/odom",
@@ -192,7 +208,7 @@ class WifiSlamNode(LifecycleNode):
         )
 
     def _destroy_subscribers(self) -> None:
-        """Destroy all sensor subscriptions."""
+        """Destroy odometry, IMU, Wi-Fi RTT, and depth subscriptions."""
         if hasattr(self, "_odometry_sub"):
             self.destroy_subscription(self._odometry_sub)
         if hasattr(self, "_imu_sub"):
@@ -203,7 +219,7 @@ class WifiSlamNode(LifecycleNode):
             self.destroy_subscription(self._depth_sub)
 
     def _destroy_publishers(self) -> None:
-        """Destroy all lifecycle publishers."""
+        """Destroy pose, trajectory, odom_filtered, and map publishers."""
         if hasattr(self, "pose_with_covariance_pub"):
             self.destroy_publisher(self.pose_with_covariance_pub)
         if hasattr(self, "trajectory_pub"):
@@ -213,17 +229,21 @@ class WifiSlamNode(LifecycleNode):
         if hasattr(self, "map_pub"):
             self.destroy_publisher(self.map_pub)
 
-    # ------------------------------------------------------------------
-    # Sensor callbacks
-    # ------------------------------------------------------------------
-
     def _odometry_callback(self, msg: Odometry) -> None:
-        """Forward wheel-odometry to the pose estimator."""
+        """Forward wheel odometry to the pose estimator and publish filtered odom.
+
+        Args:
+            msg: Odometry message from the chassis.
+        """
         self._pose_estimator.push_odometry_msg(msg)
         self._publish_odom_filtered()
 
     def _imu_callback(self, msg: Imu) -> None:
-        """Transform IMU into ``base_frame`` and forward to the estimator."""
+        """Transform IMU to base_frame and feed to pose estimator; publish filtered odom.
+
+        Args:
+            msg: IMU message in imu_frame.
+        """
         from_frame = self.get_parameter("imu_frame").value
         to_frame = self.get_parameter("base_frame").value
 
@@ -243,19 +263,54 @@ class WifiSlamNode(LifecycleNode):
         self._publish_odom_filtered()
 
     def _depth_callback(self, msg: PointCloud2) -> None:
-        """Handle depth point-cloud (not yet implemented)."""
+        """Handle depth point cloud (reserved for future use).
+
+        Args:
+            msg: Depth point cloud message.
+        """
         return
 
     def _wifi_rtt_callback(self, msg: APRangeObservation) -> None:
-        """Handle Wi-Fi RTT range observation."""
-        self._wifi_rtt_clustering.push_wifi_rtt_msg(msg)
+        """Add keyframes and loop closures from Wi-Fi RTT observations.
 
-    # ------------------------------------------------------------------
-    # Publishers
-    # ------------------------------------------------------------------
+        Args:
+            msg: Wi-Fi RTT scan with per-AP range observations.
+        """
+        if self._pose_graph.is_empty():
+            node = Node(
+                pose=self._pose_estimator.current_odom_filtered_pose.pose,
+                timestamp=msg.header.stamp,
+                observations=np.array([obs.measured_distance for obs in msg.observations], dtype=np.float64),
+            )
+            self._pose_graph.add_node(node)
+            return
+
+        if has_robot_moved(
+            self._pose_estimator.current_odom_filtered_pose.pose,
+            self._pose_graph.nodes[-1].pose,
+            self._distance_interval,
+            self._yaw_interval,
+        ):
+            node = Node(
+                pose=self._pose_estimator.current_odom_filtered_pose.pose,
+                timestamp=msg.header.stamp,
+                observations=np.array([obs.measured_distance for obs in msg.observations], dtype=np.float64),
+            )
+            prev_index = len(self._pose_graph.nodes) - 1
+            self._pose_graph.add_node(node)
+            self._pose_graph.add_edge(from_index=prev_index, to_index=len(self._pose_graph.nodes) - 1)
+
+            loop_closure_indexes = self._loop_closure.loop_closure_indexes
+            if loop_closure_indexes is not None:
+                current_index = len(self._pose_graph.nodes) - 1
+                self.get_logger().info(
+                    f"Loop closure detected: node {current_index} matches previous nodes {loop_closure_indexes}"
+                )
+                for loop_idx in loop_closure_indexes:
+                    self._pose_graph.add_loop_closure(from_index=loop_idx, to_index=current_index)
 
     def _publish_odom_filtered(self) -> None:
-        """Publish the latest fused odometry."""
+        """Publish the latest EKF-filtered odometry."""
         try:
             odom_msg = self._pose_estimator.current_odom_filtered_pose
             self.odom_filtered_pub.publish(odom_msg)
@@ -263,7 +318,7 @@ class WifiSlamNode(LifecycleNode):
             self.get_logger().warning(f"Failed to publish filtered odometry: {e}")
 
     def _publish_map(self) -> None:
-        """Publish the latest map (not yet implemented)."""
+        """Publish the latest map (reserved for future use)."""
         return
 
 

@@ -8,6 +8,8 @@
     depth_frame: camera_pseudo_depth
     wifi_frame: chassis_wifi
     trajectory_keep_history: 100
+    distance_interval: 0.1
+    yaw_interval: 0.0174533  # 1 degree
     pose_estimator:
       initial_covar_mat_diag: [0.01, 0.01, 0.01, 0.01, 0.27, 0.04, 0.04, 0.0025]
       imu:
@@ -19,9 +21,7 @@
         enabled: true
         # [x, y, vx, vy, yaw] (default if wheel odom doesn't provide covariance)
         meas_noise_covar_diag: [0.01, 0.01, 0.01, 0.01, 0.05]
-    wifi_rtt_clustering:
-      distance_interval: 0.1
-      yaw_interval: 0.0174533 # 1 degree
+    loop_closure:
       distance_method: euclidean
       clustering_threshold: 1.0
       use_ratio_test: true

@@ -1,10 +1,7 @@
-"""Pose estimator using an Extended Kalman Filter (EKF).
+"""EKF-based pose estimator fusing IMU and odometry.
 
-State vector (8-D):
-    [X, Y, VX, VY, YAW, BIAS_ACC_X, BIAS_ACC_Y, BIAS_GYR_Z]
-
-The predict step fuses IMU measurements (gyroscope + accelerometer). Update
-steps fuse odometry.
+State vector (8-D): [X, Y, VX, VY, YAW, BIAS_ACC_X, BIAS_ACC_Y, BIAS_GYR_Z].
+Predict step uses IMU (gyro + accelerometer); update step fuses odometry.
 """
 
 from __future__ import annotations
@@ -15,14 +12,7 @@ from geometry_msgs.msg import Point, Vector3
 from nav_msgs.msg import Odometry
 from rclpy.logging import get_logger
 from rclpy.parameter import Parameter
-from rwifi_slam_ros2.common import (
-    is_zero_timestamp,
-    quaternion_to_yaw,
-    stamp_to_sec,
-    wrap_angle,
-    yaw_to_quaternion,
-    zero_timestamp,
-)
+from rwifi_slam_ros2.common import quaternion_to_yaw, wrap_angle, yaw_to_quaternion
 from sensor_msgs.msg import Imu
 
 _STATE_DIM = 8
@@ -52,9 +42,9 @@ class PoseEstimator:
         self._base_frame: str = parameters["base_frame"].value
         self._odom_frame: str = parameters["odom_frame"].value
 
-        self._last_imu_stamp = zero_timestamp()
-        self._last_odom_stamp = zero_timestamp()
-        self._last_update_stamp = zero_timestamp()
+        self._last_imu_stamp = Time(sec=0, nanosec=0)
+        self._last_odom_stamp = Time(sec=0, nanosec=0)
+        self._last_update_stamp = Time(sec=0, nanosec=0)
 
         self._init_filter()
 
@@ -154,9 +144,9 @@ class PoseEstimator:
         Returns:
             True if stamp is older than last_stamp.
         """
-        if is_zero_timestamp(last_stamp):
+        if last_stamp.sec == 0 and last_stamp.nanosec == 0:
             return False
-        return stamp_to_sec(stamp) < stamp_to_sec(last_stamp)
+        return (stamp.sec + stamp.nanosec * 1e-9) < (last_stamp.sec + last_stamp.nanosec * 1e-9)
 
     def _check_state_health(self, label: str) -> None:
         """Check for NaN, Inf, or invalid covariance in the filter state.
@@ -195,7 +185,7 @@ class PoseEstimator:
         Returns:
             Time delta in seconds, or None if invalid.
         """
-        dt = stamp_to_sec(cur_time) - stamp_to_sec(last_time)
+        dt = (cur_time.sec + cur_time.nanosec * 1e-9) - (last_time.sec + last_time.nanosec * 1e-9)
         if dt <= 0.0:
             self._logger.warning(f"dt={dt:.6f}s <= 0; skipping predict.")
             return None
@@ -393,7 +383,7 @@ class PoseEstimator:
         Args:
             msg: IMU message containing accelerometer and gyroscope data.
         """
-        if is_zero_timestamp(self._last_imu_stamp):
+        if self._last_imu_stamp.sec == 0 and self._last_imu_stamp.nanosec == 0:
             self._last_imu_stamp = msg.header.stamp
             self._last_update_stamp = msg.header.stamp
             return
@@ -407,6 +397,10 @@ class PoseEstimator:
         state_jacobian = self._update_state_jacobian(dt)
         self._state_covar = state_jacobian @ self._state_covar @ state_jacobian.T + process_noise_covar
         self._last_update_stamp = msg.header.stamp
+        self._logger.debug(
+            f"Predict: dt={dt:.4f}, state after "
+            f"[x={self._state[_I_X]:.3f}, y={self._state[_I_Y]:.3f}, yaw={self._state[_I_YAW]:.3f}]"
+        )
         self._check_state_health("predict")
 
     def _extract_odom_covariance(self, msg: Odometry) -> np.ndarray:
@@ -489,4 +483,8 @@ class PoseEstimator:
         self._update_state_covar_from_observation(meas_noise_covar, kalman_gain, observation_jacobian)
 
         self._last_update_stamp = msg.header.stamp
+        self._logger.debug(
+            f"Update from odom: state after "
+            f"[x={self._state[_I_X]:.3f}, y={self._state[_I_Y]:.3f}, yaw={self._state[_I_YAW]:.3f}]"
+        )
         self._check_state_health("update")
