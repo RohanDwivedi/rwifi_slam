@@ -23,7 +23,11 @@ setup(
         ),
         (
             os.path.join("share", package_name, "config"),
-            glob("config/*.yaml") + glob("config/*.rviz"),
+            glob("config/*.yaml"),
+        ),
+        (
+            os.path.join("share", package_name, "rviz"),
+            glob("rviz/*.rviz"),
         ),
     ],
     install_requires=["scipy", "numpy", "setuptools"],

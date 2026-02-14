@@ -111,7 +111,7 @@ def generate_launch_description() -> LaunchDescription:
     )
 
     # -- RViz ----------------------------------------------------------
-    rviz_config_path = os.path.join(pkg_share, "config", "default.rviz")
+    rviz_config_path = os.path.join(pkg_share, "rviz", "rwifi_slam.rviz")
     rviz_node = Node(
         package="rviz2",
         executable="rviz2",
