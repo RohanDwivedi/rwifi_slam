@@ -1,8 +1,7 @@
-"""Parameter declarations for the Range WiFi SLAM node.
+"""ROS parameter declarations for the Range Wi-Fi SLAM node.
 
-Each parameter is declared with a default value and a
-:class:`ParameterDescriptor` that documents its purpose, type, and
-valid range.
+Each parameter is declared with a default and a ParameterDescriptor
+(documentation, type, and optional range).
 """
 
 from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor, ParameterType
@@ -12,16 +11,12 @@ from rclpy.node import Node
 def declare_parameters(node: Node) -> None:
     """Declare all ROS parameters on the given node.
 
-    Parameters are grouped into three sections:
-
-    * **Global** -- frame IDs, trajectory history length.
-    * **Pose estimator / IMU** -- noise and bias characteristics.
-    * **Pose estimator / Odometry** -- measurement noise covariance.
+    Covers global (frames, trajectory), pose estimator (IMU, odometry),
+    and loop-closure parameters.
 
     Args:
-        node: The ROS 2 node on which to declare the parameters.
+        node: ROS 2 node on which to declare parameters.
     """
-    # -- Global --------------------------------------------------------
     node.declare_parameter(
         "map_frame",
         "map",
@@ -72,15 +67,29 @@ def declare_parameters(node: Node) -> None:
     )
     node.declare_parameter(
         "trajectory_keep_history",
-        100,
+        500,
         ParameterDescriptor(
             description=("Maximum number of poses retained in the trajectory."),
             type=ParameterType.PARAMETER_INTEGER,
-            integer_range=[IntegerRange(from_value=0, to_value=1000, step=1)],
+            integer_range=[IntegerRange(from_value=0, to_value=5000, step=1)],
         ),
     )
-
-    # -- Pose estimator: initial covariance ----------------------------
+    node.declare_parameter(
+        "distance_interval",
+        0.1,
+        ParameterDescriptor(
+            description=("Minimum distance (m) the robot must move before creating a new keyframe."),
+            type=ParameterType.PARAMETER_DOUBLE,
+        ),
+    )
+    node.declare_parameter(
+        "yaw_interval",
+        0.0174533,
+        ParameterDescriptor(
+            description=("Minimum yaw change (rad) before creating a new keyframe (~1 deg default)."),
+            type=ParameterType.PARAMETER_DOUBLE,
+        ),
+    )
     node.declare_parameter(
         "pose_estimator.initial_covar_mat_diag",
         [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
@@ -94,8 +103,6 @@ def declare_parameters(node: Node) -> None:
             array_length=8,
         ),
     )
-
-    # -- Pose estimator: IMU -------------------------------------------
     node.declare_parameter(
         "pose_estimator.imu.gyro_noise",
         0.001,
@@ -128,8 +135,6 @@ def declare_parameters(node: Node) -> None:
             type=ParameterType.PARAMETER_DOUBLE,
         ),
     )
-
-    # -- Pose estimator: odometry --------------------------------------
     node.declare_parameter(
         "pose_estimator.odometry.meas_noise_covar_diag",
         [0.01, 0.01, 0.01, 0.01, 0.01],
@@ -149,74 +154,79 @@ def declare_parameters(node: Node) -> None:
             type=ParameterType.PARAMETER_BOOL,
         ),
     )
-
-    # -- Wi-Fi RTT clustering -------------------------------------------
     node.declare_parameter(
-        "wifi_rtt_clustering.distance_interval",
-        0.1,
-        ParameterDescriptor(
-            description=("Minimum distance (in meters) the robot must move before creating a new Wi-Fi RTT keyframe."),
-            type=ParameterType.PARAMETER_DOUBLE,
-        ),
-    )
-    node.declare_parameter(
-        "wifi_rtt_clustering.yaw_interval",
-        0.0174533,  # 1 degree
-        ParameterDescriptor(
-            description=(
-                "Minimum yaw angle change (in radians) the robot must rotate "
-                "before creating a new Wi-Fi RTT keyframe."
-            ),
-            type=ParameterType.PARAMETER_DOUBLE,
-        ),
-    )
-    node.declare_parameter(
-        "wifi_rtt_clustering.distance_method",
+        "loop_closure.distance_method",
         "euclidean",
         ParameterDescriptor(
-            description="Distance method for Wi-Fi RTT clustering",
+            description="Distance method for loop closure (e.g. euclidean).",
             type=ParameterType.PARAMETER_STRING,
             additional_constraints="Options: euclidean",
         ),
     )
     node.declare_parameter(
-        "wifi_rtt_clustering.clustering_threshold",
+        "loop_closure.clustering_threshold",
         1.0,
         ParameterDescriptor(
-            description=("Threshold for Wi-Fi RTT clustering"),
+            description="Distance threshold for loop closure.",
             type=ParameterType.PARAMETER_DOUBLE,
         ),
     )
     node.declare_parameter(
-        "wifi_rtt_clustering.use_ratio_test",
+        "loop_closure.use_ratio_test",
         True,
         ParameterDescriptor(
-            description="Use ratio test for Wi-Fi RTT clustering",
+            description="Use ratio test for loop closure.",
             type=ParameterType.PARAMETER_BOOL,
         ),
     )
     node.declare_parameter(
-        "wifi_rtt_clustering.ratio_threshold",
+        "loop_closure.ratio_threshold",
         0.8,
         ParameterDescriptor(
-            description="Ratio threshold for Wi-Fi RTT clustering",
+            description="Ratio threshold for loop closure.",
             type=ParameterType.PARAMETER_DOUBLE,
             floating_point_range=[FloatingPointRange(from_value=0.0, to_value=1.0, step=0.0)],
         ),
     )
     node.declare_parameter(
-        "wifi_rtt_clustering.exclude_near_neighbors",
+        "loop_closure.exclude_near_neighbors",
         True,
         ParameterDescriptor(
-            description="Exclude near neighbors for Wi-Fi RTT clustering",
+            description="Exclude near neighbors from loop closure candidates.",
             type=ParameterType.PARAMETER_BOOL,
         ),
     )
     node.declare_parameter(
-        "wifi_rtt_clustering.near_neighbor_threshold",
+        "loop_closure.near_neighbor_threshold",
+        20,
+        ParameterDescriptor(
+            description="Number of recent nodes to exclude from loop closure.",
+            type=ParameterType.PARAMETER_INTEGER,
+        ),
+    )
+    node.declare_parameter(
+        "pose_graph.robustness_threshold",
+        0.5,
+        ParameterDescriptor(
+            description="Robustness threshold for the pose graph.",
+            type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=1.0, step=0.0)],
+        ),
+    )
+    node.declare_parameter(
+        "pose_graph.optimization_iterations",
         10,
         ParameterDescriptor(
-            description="Threshold for excluding near neighbors for Wi-Fi RTT clustering",
+            description="Number of Levenberg-Marquardt iterations for pose graph optimization.",
             type=ParameterType.PARAMETER_INTEGER,
+            integer_range=[IntegerRange(from_value=1, to_value=500, step=1)],
+        ),
+    )
+    node.declare_parameter(
+        "pose_graph.verbose",
+        False,
+        ParameterDescriptor(
+            description="Enable verbose g2o optimizer output (for debugging).",
+            type=ParameterType.PARAMETER_BOOL,
         ),
     )

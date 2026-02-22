@@ -1,9 +1,7 @@
-"""Common utilities: parameters, QoS profiles, and TF2 transform helpers."""
+"""Common utilities: parameters, QoS, transforms, and motion/pose helpers."""
 
-from .keyframes import Keyframe, KeyframeCollection
 from .parameters import declare_parameters
 from .qos_settings import MAP_QOS_PROFILE, POSE_QOS_PROFILE, SENSOR_QOS_PROFILE
-from .time_utils import is_zero_timestamp, stamp_to_sec, zero_timestamp
 from .transforms import (
     get_static_transform,
     quaternion_multiply,
@@ -14,23 +12,34 @@ from .transforms import (
     wrap_angle,
     yaw_to_quaternion,
 )
+from .utils import (
+    has_robot_moved,
+    inv_SE3,
+    pose_error_6d,
+    pose_from_se3,
+    regularise_covariance,
+    relative_pose_covariance,
+    se3_from_pose,
+)
 
 __all__ = [
-    "Keyframe",
-    "KeyframeCollection",
     "MAP_QOS_PROFILE",
     "POSE_QOS_PROFILE",
     "SENSOR_QOS_PROFILE",
     "declare_parameters",
-    "is_zero_timestamp",
+    "has_robot_moved",
     "quaternion_multiply",
     "quaternion_to_rotation_matrix",
     "quaternion_to_yaw",
     "rotate_vector_by_quaternion",
     "get_static_transform",
-    "stamp_to_sec",
     "transform_imu_with_tf",
     "wrap_angle",
     "yaw_to_quaternion",
-    "zero_timestamp",
+    "inv_SE3",
+    "pose_error_6d",
+    "pose_from_se3",
+    "regularise_covariance",
+    "relative_pose_covariance",
+    "se3_from_pose",
 ]

@@ -23,10 +23,14 @@ setup(
         ),
         (
             os.path.join("share", package_name, "config"),
-            glob("config/*.yaml") + glob("config/*.rviz"),
+            glob("config/*.yaml"),
+        ),
+        (
+            os.path.join("share", package_name, "rviz"),
+            glob("rviz/*.rviz"),
         ),
     ],
-    install_requires=["scipy", "numpy", "setuptools"],
+    install_requires=["scipy", "numpy", "setuptools", "g2opy"],
     zip_safe=True,
     maintainer="Rohan Dwivedi",
     maintainer_email="myemail.rohan@gmail.com",

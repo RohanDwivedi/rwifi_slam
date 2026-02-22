@@ -68,7 +68,7 @@ def generate_launch_description() -> LaunchDescription:
     log_level_arg = DeclareLaunchArgument(
         "log_level",
         default_value="info",
-        description=("Log level for nodes: 'debug', 'info', 'warn', 'error', 'fatal'."),
+        description=("Log level for rwifi_slam_node: 'debug', 'info', 'warn', 'error', 'fatal'."),
     )
 
     # -- Include wifi_bringup launch -----------------------------------
@@ -79,7 +79,6 @@ def generate_launch_description() -> LaunchDescription:
             "simulation_type": LaunchConfiguration("simulation_type"),
             "headless": LaunchConfiguration("headless"),
             "launch_simulation": LaunchConfiguration("launch_simulation"),
-            "log_level": LaunchConfiguration("log_level"),
         }.items(),
     )
 
@@ -91,7 +90,11 @@ def generate_launch_description() -> LaunchDescription:
         namespace="",
         output="screen",
         parameters=[rwifi_slam_params],
-        arguments=["--ros-args", "--log-level", LaunchConfiguration("log_level")],
+        arguments=[
+            "--ros-args",
+            "--log-level",
+            ["rwifi_slam_node:=", LaunchConfiguration("log_level")],
+        ],
     )
 
     # -- Nav2 lifecycle manager (auto configure -> activate) -----------
@@ -107,23 +110,16 @@ def generate_launch_description() -> LaunchDescription:
                 "bond_timeout": 0.0,
             }
         ],
-        arguments=["--ros-args", "--log-level", LaunchConfiguration("log_level")],
     )
 
     # -- RViz ----------------------------------------------------------
-    rviz_config_path = os.path.join(pkg_share, "config", "default.rviz")
+    rviz_config_path = os.path.join(pkg_share, "rviz", "rwifi_slam.rviz")
     rviz_node = Node(
         package="rviz2",
         executable="rviz2",
         name="rviz2",
         output="screen",
-        arguments=[
-            "-d",
-            rviz_config_path,
-            "--ros-args",
-            "--log-level",
-            LaunchConfiguration("log_level"),
-        ],
+        arguments=["-d", rviz_config_path],
         parameters=[{"use_sim_time": False}],
         condition=IfCondition(LaunchConfiguration("use_rviz")),
     )

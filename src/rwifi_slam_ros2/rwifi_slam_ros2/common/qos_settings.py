@@ -1,22 +1,24 @@
-"""Quality-of-service profiles declarations for the Range WiFi SLAM node."""
+"""QoS profiles for the Range Wi-Fi SLAM node.
+
+SENSOR_QOS_PROFILE: Best-effort, keep-last 10 (IMU, odometry, Wi-Fi, depth).
+POSE_QOS_PROFILE: Reliable, keep-last 1 (pose output).
+MAP_QOS_PROFILE: Reliable, transient-local, keep-last 10 (map, trajectory).
+"""
 
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 
-# Best-effort QoS for high-frequency sensor streams (IMU, odometry).
 SENSOR_QOS_PROFILE: QoSProfile = QoSProfile(
     reliability=QoSReliabilityPolicy.BEST_EFFORT,
     history=QoSHistoryPolicy.KEEP_LAST,
     depth=10,
 )
 
-# Reliable QoS for the latest pose output.
 POSE_QOS_PROFILE: QoSProfile = QoSProfile(
     reliability=QoSReliabilityPolicy.RELIABLE,
     history=QoSHistoryPolicy.KEEP_LAST,
     depth=1,
 )
 
-# Reliable, transient-local QoS for map and trajectory topics.
 MAP_QOS_PROFILE: QoSProfile = QoSProfile(
     reliability=QoSReliabilityPolicy.RELIABLE,
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,

@@ -1,25 +1,28 @@
-"""TF2 and quaternion transformations helpers for the Range WiFi SLAM node."""
+"""TF2 and quaternion transformation helpers for the Range Wi-Fi SLAM node."""
 
 from __future__ import annotations
 
 import numpy as np
 import rclpy
 from geometry_msgs.msg import Quaternion, Vector3
+from rclpy.logging import get_logger
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import Imu
 from tf2_ros import Buffer, TransformException, TransformStamped
 
+_logger = get_logger(__name__)
+
 
 def yaw_to_quaternion(yaw: float) -> Quaternion:
-    """Convert a yaw angle to a ``geometry_msgs/Quaternion``.
+    """Convert a yaw angle to a geometry_msgs Quaternion.
 
-    Assumes zero roll and pitch (rotation about the Z-axis only).
+    Assumes zero roll and pitch (rotation about Z only).
 
     Args:
         yaw: Yaw angle in radians.
 
     Returns:
-        Quaternion with ``x=0, y=0`` and ``z, w`` set from *yaw*.
+        Quaternion with x=0, y=0; z and w derived from yaw.
     """
     return Quaternion(
         x=0.0,
@@ -32,13 +35,13 @@ def yaw_to_quaternion(yaw: float) -> Quaternion:
 def quaternion_to_yaw(q: Quaternion) -> float:
     """Extract the yaw angle (rotation about Z) from a quaternion.
 
-    Works for arbitrary 3D orientations;
+    Works for arbitrary 3D orientations.
 
     Args:
-        q: Input quaternion (w, x, y, z).
+        q: Input quaternion (geometry_msgs: x, y, z, w).
 
     Returns:
-        Yaw angle in radians on ``(-pi, pi]``.
+        Yaw angle in radians in (-pi, pi].
     """
     siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
     cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
@@ -47,40 +50,40 @@ def quaternion_to_yaw(q: Quaternion) -> float:
 
 
 def wrap_angle(angle: float) -> float:
-    """Wrap an angle to the interval ``[-pi, pi]``.
+    """Wrap an angle to [-pi, pi].
 
     Args:
         angle: Angle in radians.
 
     Returns:
-        Equivalent angle in ``[-pi, pi]``.
+        Equivalent angle in [-pi, pi].
     """
     return float(np.arctan2(np.sin(angle), np.cos(angle)))
 
 
 def quaternion_to_rotation_matrix(q: Quaternion) -> np.ndarray:
-    """Convert a ``geometry_msgs/Quaternion`` to a 3x3 rotation matrix.
+    """Convert a geometry_msgs Quaternion to a 3x3 rotation matrix.
 
-    The resulting matrix represents the body-to-world rotation.
+    The result is the body-to-world rotation matrix.
 
     Args:
-        q: Input quaternion (scalar-last: x, y, z, w).
+        q: Input quaternion (x, y, z, w).
 
     Returns:
-        3x3 rotation matrix as a NumPy array.
+        3x3 rotation matrix.
     """
     return Rotation.from_quat([q.x, q.y, q.z, q.w]).as_matrix()
 
 
 def rotate_vector_by_quaternion(q: Quaternion, v: Vector3) -> Vector3:
-    """Rotate a 3-D vector by a unit quaternion.
+    """Rotate a 3D vector by a unit quaternion.
 
     Args:
         q: Unit quaternion defining the rotation.
         v: Vector to rotate.
 
     Returns:
-        Rotated vector as a ``geometry_msgs/Vector3``.
+        Rotated vector as a geometry_msgs Vector3.
     """
     r = Rotation.from_quat([q.x, q.y, q.z, q.w])
     v_rot = r.apply([v.x, v.y, v.z])
@@ -88,14 +91,14 @@ def rotate_vector_by_quaternion(q: Quaternion, v: Vector3) -> Vector3:
 
 
 def quaternion_multiply(q1: Quaternion, q2: Quaternion) -> Quaternion:
-    """Compose two quaternions (Hamilton product ``q1 * q2``).
+    """Compose two quaternions (Hamilton product q1 * q2).
 
     Args:
         q1: Left quaternion.
         q2: Right quaternion.
 
     Returns:
-        Product quaternion as a ``geometry_msgs/Quaternion``.
+        Product quaternion as geometry_msgs Quaternion.
     """
     r1 = Rotation.from_quat([q1.x, q1.y, q1.z, q1.w])
     r2 = Rotation.from_quat([q2.x, q2.y, q2.z, q2.w])
@@ -129,6 +132,7 @@ def transform_imu_with_tf(msg: Imu, tf: TransformStamped, to_frame: str) -> Imu:
     out.linear_acceleration = rotate_vector_by_quaternion(rot_q, msg.linear_acceleration)
     out.linear_acceleration_covariance = msg.linear_acceleration_covariance
 
+    _logger.debug(f"Transformed IMU from {msg.header.frame_id} to frame {to_frame}")
     return out
 
 
@@ -137,18 +141,18 @@ def get_static_transform(
     from_frame: str,
     to_frame: str,
 ) -> TransformStamped:
-    """Get a static transform between two frames.
+    """Look up the static transform from one frame to another.
 
     Args:
-        tf_buffer: TF2 buffer to look up transforms.
-        from_frame: Source TF frame.
-        to_frame: Target TF frame.
+        tf_buffer: TF2 buffer for lookup.
+        from_frame: Source frame ID.
+        to_frame: Target frame ID.
 
     Returns:
-        Transform between the frames.
+        Transform from from_frame to to_frame.
 
     Raises:
-        TransformException: If the transform is unavailable.
+        TransformException: If the transform is not available.
     """
     try:
         transform = tf_buffer.lookup_transform(
@@ -160,4 +164,5 @@ def get_static_transform(
     except TransformException as e:
         raise TransformException(f"Transform {from_frame} -> {to_frame} unavailable: {e}") from e
 
+    _logger.debug(f"Static transform {from_frame} -> {to_frame} looked up successfully")
     return transform
