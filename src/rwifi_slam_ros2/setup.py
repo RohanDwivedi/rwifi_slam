@@ -9,7 +9,7 @@ package_name = "rwifi_slam_ros2"
 
 setup(
     name=package_name,
-    version="0.11.0",
+    version="0.12.0",
     packages=find_packages(exclude=["test"]),
     data_files=[
         (
