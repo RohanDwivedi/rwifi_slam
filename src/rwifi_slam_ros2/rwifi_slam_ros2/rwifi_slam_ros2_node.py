@@ -1,6 +1,6 @@
-"""ROS 2 lifecycle node for Range WiFi SLAM.
+"""ROS 2 lifecycle node for Range Wi-Fi SLAM.
 
-Orchestrator for the Range WiFi SLAM.
+Orchestrator for the Range Wi-Fi SLAM.
 
 Subscribes to IMU, odometry, Wi-Fi RTT, and depth sensors,
 processes the data through the :class:`PoseEstimator` EKF,
@@ -9,8 +9,6 @@ the wifi based posegraph SLAM module.
 """
 
 from __future__ import annotations
-
-from collections import deque
 
 import numpy as np
 import rclpy
@@ -24,21 +22,23 @@ from rwifi_slam_ros2.common import (
     MAP_QOS_PROFILE,
     POSE_QOS_PROFILE,
     SENSOR_QOS_PROFILE,
-    Graph,
-    Node,
     declare_parameters,
     get_static_transform,
     has_robot_moved,
+    inv_SE3,
+    se3_from_pose,
     transform_imu_with_tf,
+    yaw_to_quaternion,
 )
+from rwifi_slam_ros2.include.backend import Graph
 from rwifi_slam_ros2.include.front_end import LoopClosure, PoseEstimator
 from sensor_msgs.msg import Imu, PointCloud2
-from tf2_ros import Buffer, TransformException, TransformListener, TransformStamped
+from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformListener, TransformStamped
 from wifi_rtt_msgs.msg import APRangeObservation
 
 
 class WifiSlamNode(LifecycleNode):
-    """Lifecycle node for Range WiFi SLAM: EKF pose estimation, pose graph, loop closure."""
+    """Lifecycle node for Range Wi-Fi SLAM: EKF pose estimation, pose graph, loop closure."""
 
     def __init__(self) -> None:
         """Initialize node, declare parameters, and create pose estimator, graph, and loop closure."""
@@ -50,8 +50,6 @@ class WifiSlamNode(LifecycleNode):
         self._tf_listener = TransformListener(self._tf_buffer, self)
         self._cache_static_tf: TransformStamped | None = None
 
-        self._pose_history: deque[PoseStamped] = deque(maxlen=self.get_parameter("trajectory_keep_history").value)
-
         self._distance_interval = self.get_parameter("distance_interval").value
         self._yaw_interval = self.get_parameter("yaw_interval").value
 
@@ -62,7 +60,14 @@ class WifiSlamNode(LifecycleNode):
         params["odom_frame"] = odom_frame
         self._pose_estimator = PoseEstimator(parameters=params)
 
-        self._pose_graph = Graph()
+        robustness_threshold = self.get_parameter("pose_graph.robustness_threshold").value
+        pose_graph_verbose = self.get_parameter("pose_graph.verbose").value
+        optimization_iterations = self.get_parameter("pose_graph.optimization_iterations").value
+        self._pose_graph = Graph(
+            robustness_threshold=robustness_threshold,
+            verbose=pose_graph_verbose,
+            optimization_iterations=optimization_iterations,
+        )
 
         params = self.get_parameters_by_prefix("loop_closure")
         self._loop_closure = LoopClosure(parameters=params, graph=self._pose_graph)
@@ -75,9 +80,9 @@ class WifiSlamNode(LifecycleNode):
         if node_level is None:
             return
         child_logger_names = [
-            "PoseEstimator",
-            "LoopClosure",
-            "rwifi_slam_ros2.common.pose_graph",
+            "rwifi_slam_ros2.include.front_end.pose_estimator",
+            "rwifi_slam_ros2.include.front_end.loop_closure",
+            "rwifi_slam_ros2.include.backend.pose_graph",
             "rwifi_slam_ros2.common.transforms",
             "rwifi_slam_ros2.common.utils",
         ]
@@ -185,7 +190,7 @@ class WifiSlamNode(LifecycleNode):
         )
 
     def _init_publishers(self) -> None:
-        """Create all lifecycle publishers."""
+        """Create all lifecycle publishers and the TF broadcaster."""
         self.pose_with_covariance_pub = self.create_lifecycle_publisher(
             PoseWithCovarianceStamped,
             "/pose",
@@ -206,6 +211,7 @@ class WifiSlamNode(LifecycleNode):
             "/map",
             MAP_QOS_PROFILE,
         )
+        self._tf_broadcaster = TransformBroadcaster(self)
 
     def _destroy_subscribers(self) -> None:
         """Destroy odometry, IMU, Wi-Fi RTT, and depth subscriptions."""
@@ -237,6 +243,7 @@ class WifiSlamNode(LifecycleNode):
         """
         self._pose_estimator.push_odometry_msg(msg)
         self._publish_odom_filtered()
+        self._publish_map_to_odom_tf()
 
     def _imu_callback(self, msg: Imu) -> None:
         """Transform IMU to base_frame and feed to pose estimator; publish filtered odom.
@@ -277,12 +284,14 @@ class WifiSlamNode(LifecycleNode):
             msg: Wi-Fi RTT scan with per-AP range observations.
         """
         if self._pose_graph.is_empty():
-            node = Node(
+            self._pose_graph.add_node(
                 pose=self._pose_estimator.current_odom_filtered_pose.pose,
-                timestamp=msg.header.stamp,
                 observations=np.array([obs.measured_distance for obs in msg.observations], dtype=np.float64),
+                timestamp=msg.header.stamp,
             )
-            self._pose_graph.add_node(node)
+            self._publish_slam_pose()
+            self._publish_trajectory()
+            self._publish_map_to_odom_tf()
             return
 
         if has_robot_moved(
@@ -291,31 +300,97 @@ class WifiSlamNode(LifecycleNode):
             self._distance_interval,
             self._yaw_interval,
         ):
-            node = Node(
+            prev_index = self._pose_graph.nodes_length - 1
+            self._pose_graph.add_node(
                 pose=self._pose_estimator.current_odom_filtered_pose.pose,
-                timestamp=msg.header.stamp,
                 observations=np.array([obs.measured_distance for obs in msg.observations], dtype=np.float64),
+                timestamp=msg.header.stamp,
             )
-            prev_index = len(self._pose_graph.nodes) - 1
-            self._pose_graph.add_node(node)
-            self._pose_graph.add_edge(from_index=prev_index, to_index=len(self._pose_graph.nodes) - 1)
+            self._pose_graph.add_odometry_edge(from_index=prev_index, to_index=self._pose_graph.nodes_length - 1)
+            self._publish_slam_pose()
+            self._publish_trajectory()
+            self._publish_map_to_odom_tf()
 
-            loop_closure_indexes = self._loop_closure.loop_closure_indexes
+            loop_closure_indexes = self._loop_closure.get_loop_closure_indexes()
             if loop_closure_indexes is not None:
-                current_index = len(self._pose_graph.nodes) - 1
+                current_index = self._pose_graph.nodes_length - 1
                 self.get_logger().info(
                     f"Loop closure detected: node {current_index} matches previous nodes {loop_closure_indexes}"
                 )
                 for loop_idx in loop_closure_indexes:
-                    self._pose_graph.add_loop_closure(from_index=loop_idx, to_index=current_index)
+                    self._pose_graph.add_loop_closure_constraint(from_index=loop_idx, to_index=current_index)
+
+                self._pose_graph.optimize()
+                self._publish_trajectory()
+                self._publish_map_to_odom_tf()
+                self._publish_slam_pose()
 
     def _publish_odom_filtered(self) -> None:
         """Publish the latest EKF-filtered odometry."""
-        try:
-            odom_msg = self._pose_estimator.current_odom_filtered_pose
-            self.odom_filtered_pub.publish(odom_msg)
-        except ValueError as e:
-            self.get_logger().warning(f"Failed to publish filtered odometry: {e}")
+        odom_msg = self._pose_estimator.current_odom_filtered_pose
+        self.odom_filtered_pub.publish(odom_msg)
+
+    def _publish_slam_pose(self) -> None:
+        """Publish the latest SLAM pose with covariance (from pose graph, not EKF).
+
+        The trajectory is the collection of poses from the SLAM pose graph; it can
+        be updated after optimization (including previous poses). This method
+        always publishes the latest value of the SLAM pose (last node in the
+        trajectory) with covariance on /pose. Covariance comes from the pose graph
+        (stored per node at keyframe creation; see pose_graph._covariances).
+        """
+        if self._pose_graph.is_empty():
+            return
+        last_node = self._pose_graph.nodes[-1]
+        msg = PoseWithCovarianceStamped()
+        msg.header.stamp = last_node.timestamp
+        msg.header.frame_id = self.get_parameter("map_frame").value
+        # last_node.pose is PoseWithCovariance: .pose (position + orientation) and .covariance (36-element)
+        msg.pose = last_node.pose
+        self.pose_with_covariance_pub.publish(msg)
+
+    def _publish_trajectory(self) -> None:
+        """Publish the SLAM trajectory as a nav_msgs/Path (collection of pose-graph poses, last N nodes)."""
+        if self._pose_graph.is_empty():
+            return
+        keep = int(self.get_parameter("trajectory_keep_history").value)
+        nodes = self._pose_graph.nodes
+        if keep <= 0:
+            node_views = list(nodes)
+        else:
+            node_views = list(nodes[-keep:])
+        map_frame = self.get_parameter("map_frame").value
+        path = Path()
+        path.header.stamp = self.get_clock().now().to_msg()
+        path.header.frame_id = map_frame
+        for node_view in node_views:
+            pose = PoseStamped()
+            pose.header.stamp = node_view.timestamp
+            pose.header.frame_id = map_frame
+            pose.pose = node_view.pose.pose
+            path.poses.append(pose)
+        self.trajectory_pub.publish(path)
+
+    def _publish_map_to_odom_tf(self) -> None:
+        """Broadcast the map -> odom transform derived from the optimized graph."""
+        if self._pose_graph.is_empty():
+            return
+        odom_pose = self._pose_estimator.current_odom_filtered_pose
+        T_map_robot = se3_from_pose(self._pose_graph.nodes[-1].pose)
+        T_odom_robot = se3_from_pose(odom_pose.pose)
+        T_map_odom = T_map_robot @ inv_SE3(T_odom_robot)
+
+        yaw = float(np.arctan2(T_map_odom[1, 0], T_map_odom[0, 0]))
+
+        t = TransformStamped()
+        t.header.stamp = odom_pose.header.stamp
+        t.header.frame_id = self.get_parameter("map_frame").value
+        t.child_frame_id = self.get_parameter("odom_frame").value
+        t.transform.translation.x = float(T_map_odom[0, 3])
+        t.transform.translation.y = float(T_map_odom[1, 3])
+        t.transform.translation.z = float(T_map_odom[2, 3])
+        t.transform.rotation = yaw_to_quaternion(yaw)
+        self._tf_broadcaster.sendTransform(t)
 
     def _publish_map(self) -> None:
         """Publish the latest map (reserved for future use)."""

@@ -1,1 +1,1 @@
-"""ROS 2 package for Wi-Fi RTT SLAM: launch and config."""
+"""ROS 2 package for Range Wi-Fi RTT SLAM: EKF pose estimation, pose graph, loop closure."""

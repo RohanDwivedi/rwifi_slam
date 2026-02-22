@@ -1,4 +1,4 @@
-"""QoS profiles for the Range WiFi SLAM node.
+"""QoS profiles for the Range Wi-Fi SLAM node.
 
 SENSOR_QOS_PROFILE: Best-effort, keep-last 10 (IMU, odometry, Wi-Fi, depth).
 POSE_QOS_PROFILE: Reliable, keep-last 1 (pose output).

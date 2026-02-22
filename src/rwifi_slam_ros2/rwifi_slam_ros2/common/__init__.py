@@ -1,7 +1,6 @@
-"""Common utilities: parameters, QoS, pose graph, transforms, and motion helpers."""
+"""Common utilities: parameters, QoS, transforms, and motion/pose helpers."""
 
 from .parameters import declare_parameters
-from .pose_graph import Edge, Graph, LoopClosureConstraint, Node
 from .qos_settings import MAP_QOS_PROFILE, POSE_QOS_PROFILE, SENSOR_QOS_PROFILE
 from .transforms import (
     get_static_transform,
@@ -13,13 +12,17 @@ from .transforms import (
     wrap_angle,
     yaw_to_quaternion,
 )
-from .utils import has_robot_moved, inv_SE3, relative_pose_covariance, se3_from_pose
+from .utils import (
+    has_robot_moved,
+    inv_SE3,
+    pose_error_6d,
+    pose_from_se3,
+    regularise_covariance,
+    relative_pose_covariance,
+    se3_from_pose,
+)
 
 __all__ = [
-    "Graph",
-    "Node",
-    "Edge",
-    "LoopClosureConstraint",
     "MAP_QOS_PROFILE",
     "POSE_QOS_PROFILE",
     "SENSOR_QOS_PROFILE",
@@ -34,6 +37,9 @@ __all__ = [
     "wrap_angle",
     "yaw_to_quaternion",
     "inv_SE3",
+    "pose_error_6d",
+    "pose_from_se3",
+    "regularise_covariance",
     "relative_pose_covariance",
     "se3_from_pose",
 ]

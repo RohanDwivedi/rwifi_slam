@@ -7,9 +7,9 @@
     imu_frame: chassis_imu
     depth_frame: camera_pseudo_depth
     wifi_frame: chassis_wifi
-    trajectory_keep_history: 100
+    trajectory_keep_history: 500
     distance_interval: 0.1
-    yaw_interval: 0.0174533  # 1 degree
+    yaw_interval: 0.0174533 # 1 degree
     pose_estimator:
       initial_covar_mat_diag: [0.01, 0.01, 0.01, 0.01, 0.27, 0.04, 0.04, 0.0025]
       imu:
@@ -28,3 +28,7 @@
       ratio_threshold: 0.8
       exclude_near_neighbors: true
       near_neighbor_threshold: 20
+    pose_graph:
+      robustness_threshold: 0.5
+      optimization_iterations: 10
+      verbose: false

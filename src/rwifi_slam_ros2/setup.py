@@ -30,7 +30,7 @@ setup(
             glob("rviz/*.rviz"),
         ),
     ],
-    install_requires=["scipy", "numpy", "setuptools"],
+    install_requires=["scipy", "numpy", "setuptools", "g2opy"],
     zip_safe=True,
     maintainer="Rohan Dwivedi",
     maintainer_email="myemail.rohan@gmail.com",

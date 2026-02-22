@@ -29,7 +29,7 @@ class PoseEstimator:
         Args:
             parameters: Dictionary of ROS parameters for the pose estimator.
         """
-        self._logger = get_logger(self.__class__.__name__)
+        self._logger = get_logger(__name__)
 
         self._gyro_rw: float = parameters["imu.gyro_random_walk"].value
         self._accel_rw: float = parameters["imu.accel_random_walk"].value
@@ -55,7 +55,7 @@ class PoseEstimator:
         self._meas_noise_odom_covar = np.diag(self._meas_noise_odom_diag).astype(np.float64)
         self._last_accel_body = np.zeros(2, dtype=np.float64)
 
-        self._logger.info("Filter initialised.")
+        self._logger.info("Filter initialized.")
         self._logger.debug(f"State: {self._state}")
         self._logger.debug(f"State covariance: {self._state_covar}")
         self._logger.debug(f"Measurement noise covariance: {self._meas_noise_odom_covar}")
@@ -105,7 +105,8 @@ class PoseEstimator:
         """Build an Odometry message from the current filter state.
 
         Returns:
-            Odometry message containing pose, twist, and their covariances.
+            Odometry message with pose, twist, and covariances in the
+            current state and last update timestamp.
         """
         msg = Odometry()
         msg.header.stamp.sec = self._last_update_stamp.sec

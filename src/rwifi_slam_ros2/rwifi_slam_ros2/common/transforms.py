@@ -1,4 +1,4 @@
-"""TF2 and quaternion transformations helpers for the Range WiFi SLAM node."""
+"""TF2 and quaternion transformation helpers for the Range Wi-Fi SLAM node."""
 
 from __future__ import annotations
 

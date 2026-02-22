@@ -1,11 +1,11 @@
-"""Loop closure detection for the Range WiFi SLAM pose graph."""
+"""Loop closure detection for the Range Wi-Fi SLAM pose graph."""
 
 from __future__ import annotations
 
 import numpy as np
 from rclpy.logging import get_logger
 from rclpy.parameter import Parameter
-from rwifi_slam_ros2.common import Graph
+from rwifi_slam_ros2.include.backend import Graph
 
 
 class LoopClosure:
@@ -20,7 +20,7 @@ class LoopClosure:
                 near_neighbor_threshold).
             graph: Pose graph containing nodes and observations.
         """
-        self._logger = get_logger(self.__class__.__name__)
+        self._logger = get_logger(__name__)
 
         self._parameters = parameters
         self._distance_method: str = self._parameters["distance_method"].value
@@ -104,9 +104,8 @@ class LoopClosure:
             return best_idx
         return None
 
-    @property
-    def loop_closure_indexes(self) -> list[int] | None:
-        """Indices of previous nodes that form a loop closure with the current node.
+    def get_loop_closure_indexes(self) -> list[int] | None:
+        """Return indices of previous nodes that form a loop closure with the current node.
 
         Returns:
             List of node indices, or None if no loop closure detected.

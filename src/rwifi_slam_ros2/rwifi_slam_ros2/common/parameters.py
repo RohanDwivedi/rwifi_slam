@@ -1,4 +1,4 @@
-"""ROS parameter declarations for the Range WiFi SLAM node.
+"""ROS parameter declarations for the Range Wi-Fi SLAM node.
 
 Each parameter is declared with a default and a ParameterDescriptor
 (documentation, type, and optional range).
@@ -67,11 +67,11 @@ def declare_parameters(node: Node) -> None:
     )
     node.declare_parameter(
         "trajectory_keep_history",
-        100,
+        500,
         ParameterDescriptor(
             description=("Maximum number of poses retained in the trajectory."),
             type=ParameterType.PARAMETER_INTEGER,
-            integer_range=[IntegerRange(from_value=0, to_value=1000, step=1)],
+            integer_range=[IntegerRange(from_value=0, to_value=5000, step=1)],
         ),
     )
     node.declare_parameter(
@@ -198,9 +198,35 @@ def declare_parameters(node: Node) -> None:
     )
     node.declare_parameter(
         "loop_closure.near_neighbor_threshold",
-        10,
+        20,
         ParameterDescriptor(
             description="Number of recent nodes to exclude from loop closure.",
             type=ParameterType.PARAMETER_INTEGER,
+        ),
+    )
+    node.declare_parameter(
+        "pose_graph.robustness_threshold",
+        0.5,
+        ParameterDescriptor(
+            description="Robustness threshold for the pose graph.",
+            type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=1.0, step=0.0)],
+        ),
+    )
+    node.declare_parameter(
+        "pose_graph.optimization_iterations",
+        10,
+        ParameterDescriptor(
+            description="Number of Levenberg-Marquardt iterations for pose graph optimization.",
+            type=ParameterType.PARAMETER_INTEGER,
+            integer_range=[IntegerRange(from_value=1, to_value=500, step=1)],
+        ),
+    )
+    node.declare_parameter(
+        "pose_graph.verbose",
+        False,
+        ParameterDescriptor(
+            description="Enable verbose g2o optimizer output (for debugging).",
+            type=ParameterType.PARAMETER_BOOL,
         ),
     )
