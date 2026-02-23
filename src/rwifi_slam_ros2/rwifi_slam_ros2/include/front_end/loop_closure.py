@@ -70,9 +70,9 @@ class LoopClosure:
         Returns:
             Copy of distances with the last k entries set to inf.
         """
-        k = int(near_neighbor_threshold)
-        n = len(distances)
-        keep_mask = np.arange(n) < n - k
+        num_exclude = int(near_neighbor_threshold)
+        num_nodes = len(distances)
+        keep_mask = np.arange(num_nodes) < num_nodes - num_exclude
         return np.where(keep_mask, distances, np.inf)
 
     def _perform_ratio_test(self, distances: np.ndarray) -> int | None:

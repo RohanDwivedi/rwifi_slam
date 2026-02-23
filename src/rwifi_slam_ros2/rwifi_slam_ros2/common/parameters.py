@@ -80,6 +80,7 @@ def declare_parameters(node: Node) -> None:
         ParameterDescriptor(
             description=("Minimum distance (m) the robot must move before creating a new keyframe."),
             type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.001, to_value=100.0, step=0.0)],
         ),
     )
     node.declare_parameter(
@@ -88,6 +89,125 @@ def declare_parameters(node: Node) -> None:
         ParameterDescriptor(
             description=("Minimum yaw change (rad) before creating a new keyframe (~1 deg default)."),
             type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=3.14159265359, step=0.0)],
+        ),
+    )
+    node.declare_parameter(
+        "octomap.resolution",
+        0.1,
+        ParameterDescriptor(
+            description="Octomap voxel size and 2D occupancy grid cell size in meters.",
+            type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.01, to_value=2.0, step=0.0)],
+        ),
+    )
+    node.declare_parameter(
+        "octomap.margin_m",
+        1.0,
+        ParameterDescriptor(
+            description=(
+                "Margin in meters around observed bounds for the dynamic 2D grid. "
+                "Grid always includes world origin (0, 0)."
+            ),
+            type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=100.0, step=0.0)],
+        ),
+    )
+    node.declare_parameter(
+        "octomap.enabled",
+        True,
+        ParameterDescriptor(
+            description="If true, insert depth point clouds into the octomap and publish the 2D occupancy grid.",
+            type=ParameterType.PARAMETER_BOOL,
+        ),
+    )
+    node.declare_parameter(
+        "octomap.height_min",
+        0.0,
+        ParameterDescriptor(
+            description="Lower z (m) for 2D occupancy grid projection.",
+            type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=-10.0, to_value=10.0, step=0.0)],
+        ),
+    )
+    node.declare_parameter(
+        "octomap.height_max",
+        0.3,
+        ParameterDescriptor(
+            description="Upper z (m) for 2D occupancy grid projection.",
+            type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=-10.0, to_value=10.0, step=0.0)],
+        ),
+    )
+    node.declare_parameter(
+        "octomap.max_range",
+        50.0,
+        ParameterDescriptor(
+            description=(
+                "Max ray length (m) for point cloud insertion. "
+                "Use -1 for unlimited. Limits work and reduces artifacts (pyoctomap performance guide)."
+            ),
+            type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=-1.0, to_value=1000.0, step=0.0)],
+        ),
+    )
+    node.declare_parameter(
+        "octomap.use_decay",
+        False,
+        ParameterDescriptor(
+            description=(
+                "If true, decay old occupancy in scan bbox before insert (decayAndInsertPointCloud). "
+                "Recommended for moving sensors in dynamic environments."
+            ),
+            type=ParameterType.PARAMETER_BOOL,
+        ),
+    )
+    node.declare_parameter(
+        "octomap.logodd_decay_value",
+        -0.2,
+        ParameterDescriptor(
+            description=(
+                "Log-odds decay per scan when use_decay is true (negative). "
+                "e.g. -0.2 ≈ 20 scans to fade a ghost; -1 to -3 for very dynamic scenes."
+            ),
+            type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=-10.0, to_value=0.0, step=0.0)],
+        ),
+    )
+    node.declare_parameter(
+        "octomap.downsample_step",
+        1,
+        ParameterDescriptor(
+            description=(
+                "Use every Nth point when inserting into the octomap (1 = no downsampling). "
+                "e.g. 4 reduces 307k points to ~77k and speeds up insertPointCloud roughly proportionally."
+            ),
+            type=ParameterType.PARAMETER_INTEGER,
+            integer_range=[IntegerRange(from_value=1, to_value=1000, step=1)],
+        ),
+    )
+    node.declare_parameter(
+        "octomap.map_publish_interval_ms",
+        0.0,
+        ParameterDescriptor(
+            description=(
+                "Min interval (ms) between map publishes (0 = every depth frame). "
+                "Insert still runs every frame; only to_occupancy_grid_2d and publish are throttled."
+            ),
+            type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=3600000.0, step=0.0)],
+        ),
+    )
+    node.declare_parameter(
+        "octomap.depth_frame_interval",
+        1,
+        ParameterDescriptor(
+            description=(
+                "Process every Nth depth message (1 = every frame). "
+                "Use 2 or 3 to drop frames and free the executor for SLAM/TF when depth rate is high."
+            ),
+            type=ParameterType.PARAMETER_INTEGER,
+            integer_range=[IntegerRange(from_value=1, to_value=1000, step=1)],
         ),
     )
     node.declare_parameter(
@@ -109,6 +229,7 @@ def declare_parameters(node: Node) -> None:
         ParameterDescriptor(
             description="Gyroscope white-noise density (rad/s/sqrt(Hz)).",
             type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=100.0, step=0.0)],
         ),
     )
     node.declare_parameter(
@@ -117,6 +238,7 @@ def declare_parameters(node: Node) -> None:
         ParameterDescriptor(
             description=("Accelerometer white-noise density (m/s^2/sqrt(Hz))."),
             type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=100.0, step=0.0)],
         ),
     )
     node.declare_parameter(
@@ -125,6 +247,7 @@ def declare_parameters(node: Node) -> None:
         ParameterDescriptor(
             description="Gyroscope bias random-walk (rad/s^2/sqrt(Hz)).",
             type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=100.0, step=0.0)],
         ),
     )
     node.declare_parameter(
@@ -133,6 +256,7 @@ def declare_parameters(node: Node) -> None:
         ParameterDescriptor(
             description=("Accelerometer bias random-walk (m/s^3/sqrt(Hz))."),
             type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=100.0, step=0.0)],
         ),
     )
     node.declare_parameter(
@@ -169,6 +293,7 @@ def declare_parameters(node: Node) -> None:
         ParameterDescriptor(
             description="Distance threshold for loop closure.",
             type=ParameterType.PARAMETER_DOUBLE,
+            floating_point_range=[FloatingPointRange(from_value=0.0, to_value=1000.0, step=0.0)],
         ),
     )
     node.declare_parameter(
@@ -202,6 +327,7 @@ def declare_parameters(node: Node) -> None:
         ParameterDescriptor(
             description="Number of recent nodes to exclude from loop closure.",
             type=ParameterType.PARAMETER_INTEGER,
+            integer_range=[IntegerRange(from_value=0, to_value=10000, step=1)],
         ),
     )
     node.declare_parameter(

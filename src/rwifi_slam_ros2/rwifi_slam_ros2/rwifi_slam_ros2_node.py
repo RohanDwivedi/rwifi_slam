@@ -10,29 +10,39 @@ the wifi based posegraph SLAM module.
 
 from __future__ import annotations
 
+import queue
+import threading
+from typing import Any
+
 import numpy as np
 import rclpy
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.lifecycle import State, TransitionCallbackReturn
 from rclpy.lifecycle.node import LifecycleNode
 from rclpy.logging import get_logger_effective_level, set_logger_level
+from rclpy.parameter import Parameter
 from rclpy.subscription import Subscription
 from rwifi_slam_ros2.common import (
+    DEPTH_QOS_PROFILE,
     MAP_QOS_PROFILE,
     POSE_QOS_PROFILE,
     SENSOR_QOS_PROFILE,
     declare_parameters,
-    get_static_transform,
     has_robot_moved,
     inv_SE3,
+    quaternion_to_rotation_matrix,
     se3_from_pose,
     transform_imu_with_tf,
     yaw_to_quaternion,
 )
-from rwifi_slam_ros2.include.backend import Graph
+from rwifi_slam_ros2.include.backend import Graph, Octomap
 from rwifi_slam_ros2.include.front_end import LoopClosure, PoseEstimator
 from sensor_msgs.msg import Imu, PointCloud2
+from sensor_msgs_py import point_cloud2
 from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformListener, TransformStamped
 from wifi_rtt_msgs.msg import APRangeObservation
 
@@ -50,27 +60,44 @@ class WifiSlamNode(LifecycleNode):
         self._tf_listener = TransformListener(self._tf_buffer, self)
         self._cache_static_tf: TransformStamped | None = None
 
-        self._distance_interval = self.get_parameter("distance_interval").value
-        self._yaw_interval = self.get_parameter("yaw_interval").value
+        self._last_map_publish_ns: int = 0
+        self._depth_frame_count: int = 0
 
-        params = self.get_parameters_by_prefix("pose_estimator")
+        self._distance_interval: float = self.get_parameter("distance_interval").value
+        self._yaw_interval: float = self.get_parameter("yaw_interval").value
+        self._map_frame: str = self.get_parameter("map_frame").value
+        self._odom_frame: str = self.get_parameter("odom_frame").value
+        self._base_frame: str = self.get_parameter("base_frame").value
+        self._imu_frame: str = self.get_parameter("imu_frame").value
+        self._trajectory_keep_history: int = self.get_parameter("trajectory_keep_history").value
+
+        pose_estimator_params: dict[str, Parameter] = self.get_parameters_by_prefix("pose_estimator")
         base_frame = self.get_parameter("base_frame")
         odom_frame = self.get_parameter("odom_frame")
-        params["base_frame"] = base_frame
-        params["odom_frame"] = odom_frame
-        self._pose_estimator = PoseEstimator(parameters=params)
+        pose_estimator_params["base_frame"] = base_frame
+        pose_estimator_params["odom_frame"] = odom_frame
+        self._pose_estimator = PoseEstimator(parameters=pose_estimator_params)
 
-        robustness_threshold = self.get_parameter("pose_graph.robustness_threshold").value
-        pose_graph_verbose = self.get_parameter("pose_graph.verbose").value
-        optimization_iterations = self.get_parameter("pose_graph.optimization_iterations").value
-        self._pose_graph = Graph(
-            robustness_threshold=robustness_threshold,
-            verbose=pose_graph_verbose,
-            optimization_iterations=optimization_iterations,
-        )
+        pose_graph_params: dict[str, Parameter] = self.get_parameters_by_prefix("pose_graph")
+        self._pose_graph = Graph(parameters=pose_graph_params)
 
-        params = self.get_parameters_by_prefix("loop_closure")
-        self._loop_closure = LoopClosure(parameters=params, graph=self._pose_graph)
+        loop_closure_params: dict[str, Parameter] = self.get_parameters_by_prefix("loop_closure")
+        self._loop_closure = LoopClosure(parameters=loop_closure_params, graph=self._pose_graph)
+
+        octomap_params: dict[str, Parameter] = self.get_parameters_by_prefix("octomap")
+        octomap_params["map_frame"] = self.get_parameter("map_frame")
+        self._octomap = Octomap(parameters=octomap_params)
+
+        self._depth_callback_group = MutuallyExclusiveCallbackGroup()
+        self._mapping_enabled: bool = self.get_parameter("octomap.enabled").value
+        self._octomap_downsample_step: int = self.get_parameter("octomap.downsample_step").value
+        self._map_publish_interval_ms: float = self.get_parameter("octomap.map_publish_interval_ms").value
+        self._octomap_depth_frame_interval: int = self.get_parameter("octomap.depth_frame_interval").value
+
+        self._depth_queue: queue.Queue[tuple[str, Any, np.ndarray] | None] = queue.Queue(maxsize=1)
+        self._depth_worker_stop = threading.Event()
+        self._depth_worker_thread: threading.Thread | None = None
+        self._octomap_lock = threading.Lock()
 
         self._propagate_log_level()
 
@@ -90,15 +117,7 @@ class WifiSlamNode(LifecycleNode):
             set_logger_level(name, node_level)
 
     def on_configure(self, state: State) -> TransitionCallbackReturn:
-        """Create subscriptions, publishers, services, and timers.
-
-        Args:
-            state: Current lifecycle state.
-
-        Returns:
-            ``SUCCESS`` when all resources are created, ``FAILURE`` on
-            any exception.
-        """
+        """Create subscriptions and publishers. Return SUCCESS or FAILURE on exception."""
         try:
             self._init_subscribers()
             self._init_publishers()
@@ -111,52 +130,40 @@ class WifiSlamNode(LifecycleNode):
             return TransitionCallbackReturn.FAILURE
 
     def on_activate(self, state: State) -> TransitionCallbackReturn:
-        """Activate lifecycle publishers and subscriptions.
-
-        Args:
-            state: Current lifecycle state.
-
-        Returns:
-            Result of the parent ``on_activate``.
-        """
+        """Activate node and start depth worker thread if mapping is enabled."""
         self.get_logger().info("Activating.")
+        if self._mapping_enabled:
+            self._depth_worker_stop.clear()
+            self._depth_worker_thread = threading.Thread(
+                target=self._depth_worker,
+                name="depth_mapping_worker",
+                daemon=True,
+            )
+            self._depth_worker_thread.start()
         return super().on_activate(state)
 
     def on_deactivate(self, state: State) -> TransitionCallbackReturn:
-        """Deactivate lifecycle publishers and subscriptions.
-
-        Args:
-            state: Current lifecycle state.
-
-        Returns:
-            Result of the parent ``on_deactivate``.
-        """
+        """Deactivate node and stop the depth worker thread."""
         self.get_logger().info("Deactivating.")
+        if self._depth_worker_thread is not None:
+            self._depth_worker_stop.set()
+            try:
+                self._depth_queue.put_nowait(None)
+            except queue.Full:
+                pass
+            self._depth_worker_thread.join(timeout=2.0)
+            self._depth_worker_thread = None
         return super().on_deactivate(state)
 
     def on_cleanup(self, state: State) -> TransitionCallbackReturn:
-        """Destroy resources created during ``on_configure``.
-
-        Args:
-            state: Current lifecycle state.
-
-        Returns:
-            ``SUCCESS`` after cleanup completes.
-        """
+        """Destroy subscriptions and publishers created in on_configure."""
         self.get_logger().info("Cleaning up.")
         self._destroy_subscribers()
         self._destroy_publishers()
         return TransitionCallbackReturn.SUCCESS
 
     def on_shutdown(self, state: State) -> TransitionCallbackReturn:
-        """Handle shutdown from any state, releasing resources if present.
-
-        Args:
-            state: Current lifecycle state.
-
-        Returns:
-            ``SUCCESS`` after shutdown completes.
-        """
+        """Release subscriptions and publishers on shutdown from any state."""
         self.get_logger().info("Shutting down.")
         self._destroy_subscribers()
         self._destroy_publishers()
@@ -186,7 +193,8 @@ class WifiSlamNode(LifecycleNode):
             PointCloud2,
             "/camera_depth/depth_pcl",
             self._depth_callback,
-            SENSOR_QOS_PROFILE,
+            DEPTH_QOS_PROFILE,
+            callback_group=self._depth_callback_group,
         )
 
     def _init_publishers(self) -> None:
@@ -236,53 +244,102 @@ class WifiSlamNode(LifecycleNode):
             self.destroy_publisher(self.map_pub)
 
     def _odometry_callback(self, msg: Odometry) -> None:
-        """Forward wheel odometry to the pose estimator and publish filtered odom.
-
-        Args:
-            msg: Odometry message from the chassis.
-        """
+        """Forward wheel odometry to the pose estimator and publish filtered odom."""
         self._pose_estimator.push_odometry_msg(msg)
         self._publish_odom_filtered()
         self._publish_map_to_odom_tf()
 
     def _imu_callback(self, msg: Imu) -> None:
-        """Transform IMU to base_frame and feed to pose estimator; publish filtered odom.
-
-        Args:
-            msg: IMU message in imu_frame.
-        """
-        from_frame = self.get_parameter("imu_frame").value
-        to_frame = self.get_parameter("base_frame").value
-
+        """Transform IMU to base_frame, feed to pose estimator, and publish filtered odom."""
         if self._cache_static_tf is None:
             try:
-                self._cache_static_tf = get_static_transform(
-                    self._tf_buffer,
-                    from_frame,
-                    to_frame,
+                self._cache_static_tf = self._tf_buffer.lookup_transform(
+                    self._base_frame,
+                    self._imu_frame,
+                    rclpy.time.Time(),
+                    timeout=Duration(seconds=0),
                 )
             except TransformException as e:
                 self.get_logger().warning(f"IMU transform not yet available: {e}")
                 return
 
-        msg = transform_imu_with_tf(msg, self._cache_static_tf, to_frame)
+        msg = transform_imu_with_tf(msg, self._cache_static_tf, self._base_frame)
         self._pose_estimator.push_imu_msg(msg)
         self._publish_odom_filtered()
 
     def _depth_callback(self, msg: PointCloud2) -> None:
-        """Handle depth point cloud (reserved for future use).
+        """Enqueue depth for mapping; worker thread handles TF, octomap insert, and map publish."""
+        if not self._mapping_enabled:
+            return
+        self._depth_frame_count += 1
+        if (self._depth_frame_count - 1) % self._octomap_depth_frame_interval != 0:
+            return
+        points_iter = point_cloud2.read_points(msg, field_names=("x", "y", "z"), skip_nans=True)
+        points_struct = np.fromiter(
+            points_iter,
+            dtype=[("x", np.float32), ("y", np.float32), ("z", np.float32)],
+        )
+        if points_struct.size == 0:
+            return
+        points = np.column_stack((points_struct["x"], points_struct["y"], points_struct["z"])).astype(np.float64)
+        try:
+            self._depth_queue.get_nowait()
+        except queue.Empty:
+            pass
+        try:
+            self._depth_queue.put_nowait((msg.header.frame_id, msg.header.stamp, points))
+        except queue.Full:
+            pass
 
-        Args:
-            msg: Depth point cloud message.
-        """
-        return
+    def _depth_worker(self) -> None:
+        """Consume depth from queue, transform to map frame, insert into octomap, publish map."""
+        while not self._depth_worker_stop.is_set():
+            try:
+                item = self._depth_queue.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            if item is None or self._depth_worker_stop.is_set():
+                continue
+            frame_id, stamp, points = item
+            try:
+                tf = self._tf_buffer.lookup_transform(
+                    self._map_frame,
+                    frame_id,
+                    stamp,
+                )
+            except TransformException as e:
+                self.get_logger().debug(f"Depth transform not available: {e}")
+                continue
+            rotation = quaternion_to_rotation_matrix(tf.transform.rotation)
+            translation = np.array(
+                [
+                    tf.transform.translation.x,
+                    tf.transform.translation.y,
+                    tf.transform.translation.z,
+                ],
+                dtype=np.float64,
+            )
+            points_map = (rotation @ points.T).T + translation
+            sensor_origin_map = translation
+            if self._octomap_downsample_step > 1:
+                points_map = points_map[:: self._octomap_downsample_step]
+            try:
+                with self._octomap_lock:
+                    self._octomap.insert_pointcloud(points_map, sensor_origin_map)
+            except ValueError as e:
+                self.get_logger().debug(f"Octomap insert skipped: {e}")
+                continue
+            if self._map_publish_interval_ms <= 0:
+                self._publish_map()
+            else:
+                with self._octomap_lock:
+                    now_ns = self.get_clock().now().nanoseconds
+                    if now_ns - self._last_map_publish_ns >= int(self._map_publish_interval_ms * 1e6):
+                        self._last_map_publish_ns = now_ns
+                        self._publish_map_impl()
 
     def _wifi_rtt_callback(self, msg: APRangeObservation) -> None:
-        """Add keyframes and loop closures from Wi-Fi RTT observations.
-
-        Args:
-            msg: Wi-Fi RTT scan with per-AP range observations.
-        """
+        """Add keyframes and loop closures from Wi-Fi RTT observations."""
         if self._pose_graph.is_empty():
             self._pose_graph.add_node(
                 pose=self._pose_estimator.current_odom_filtered_pose.pose,
@@ -331,21 +388,13 @@ class WifiSlamNode(LifecycleNode):
         self.odom_filtered_pub.publish(odom_msg)
 
     def _publish_slam_pose(self) -> None:
-        """Publish the latest SLAM pose with covariance (from pose graph, not EKF).
-
-        The trajectory is the collection of poses from the SLAM pose graph; it can
-        be updated after optimization (including previous poses). This method
-        always publishes the latest value of the SLAM pose (last node in the
-        trajectory) with covariance on /pose. Covariance comes from the pose graph
-        (stored per node at keyframe creation; see pose_graph._covariances).
-        """
+        """Publish the latest SLAM pose (last graph node) with covariance on /pose."""
         if self._pose_graph.is_empty():
             return
         last_node = self._pose_graph.nodes[-1]
         msg = PoseWithCovarianceStamped()
         msg.header.stamp = last_node.timestamp
-        msg.header.frame_id = self.get_parameter("map_frame").value
-        # last_node.pose is PoseWithCovariance: .pose (position + orientation) and .covariance (36-element)
+        msg.header.frame_id = self._map_frame
         msg.pose = last_node.pose
         self.pose_with_covariance_pub.publish(msg)
 
@@ -353,20 +402,19 @@ class WifiSlamNode(LifecycleNode):
         """Publish the SLAM trajectory as a nav_msgs/Path (collection of pose-graph poses, last N nodes)."""
         if self._pose_graph.is_empty():
             return
-        keep = int(self.get_parameter("trajectory_keep_history").value)
+        keep = self._trajectory_keep_history
         nodes = self._pose_graph.nodes
         if keep <= 0:
             node_views = list(nodes)
         else:
             node_views = list(nodes[-keep:])
-        map_frame = self.get_parameter("map_frame").value
         path = Path()
         path.header.stamp = self.get_clock().now().to_msg()
-        path.header.frame_id = map_frame
+        path.header.frame_id = self._map_frame
         for node_view in node_views:
             pose = PoseStamped()
             pose.header.stamp = node_view.timestamp
-            pose.header.frame_id = map_frame
+            pose.header.frame_id = self._map_frame
             pose.pose = node_view.pose.pose
             path.poses.append(pose)
         self.trajectory_pub.publish(path)
@@ -382,34 +430,37 @@ class WifiSlamNode(LifecycleNode):
 
         yaw = float(np.arctan2(T_map_odom[1, 0], T_map_odom[0, 0]))
 
-        t = TransformStamped()
-        t.header.stamp = odom_pose.header.stamp
-        t.header.frame_id = self.get_parameter("map_frame").value
-        t.child_frame_id = self.get_parameter("odom_frame").value
-        t.transform.translation.x = float(T_map_odom[0, 3])
-        t.transform.translation.y = float(T_map_odom[1, 3])
-        t.transform.translation.z = float(T_map_odom[2, 3])
-        t.transform.rotation = yaw_to_quaternion(yaw)
-        self._tf_broadcaster.sendTransform(t)
+        map_to_odom = TransformStamped()
+        map_to_odom.header.stamp = odom_pose.header.stamp
+        map_to_odom.header.frame_id = self._map_frame
+        map_to_odom.child_frame_id = self._odom_frame
+        map_to_odom.transform.translation.x = float(T_map_odom[0, 3])
+        map_to_odom.transform.translation.y = float(T_map_odom[1, 3])
+        map_to_odom.transform.translation.z = float(T_map_odom[2, 3])
+        map_to_odom.transform.rotation = yaw_to_quaternion(yaw)
+        self._tf_broadcaster.sendTransform(map_to_odom)
 
     def _publish_map(self) -> None:
-        """Publish the latest map (reserved for future use)."""
-        return
+        """Publish the latest 2D occupancy grid from the octomap (thread-safe)."""
+        with self._octomap_lock:
+            self._publish_map_impl()
+
+    def _publish_map_impl(self) -> None:
+        """Build and publish the 2D occupancy grid. Caller must hold _octomap_lock."""
+        grid = self._octomap.to_occupancy_grid_2d(
+            stamp=self.get_clock().now().to_msg(),
+        )
+        self.map_pub.publish(grid)
 
 
 def main(args: list[str] | None = None) -> int:
-    """Entry point for the ``rwifi_slam_node`` executable.
-
-    Args:
-        args: Command-line arguments forwarded to ``rclpy.init``.
-
-    Returns:
-        Exit code (always ``0``).
-    """
+    """Entry point for rwifi_slam_node. Uses MultiThreadedExecutor for depth in a separate thread."""
     rclpy.init(args=args)
     node = WifiSlamNode()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:

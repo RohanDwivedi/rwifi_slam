@@ -14,6 +14,7 @@
   <exec_depend>python3-scipy</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>sensor_msgs_py</exec_depend>
   <exec_depend>wifi_rtt_msgs</exec_depend>
   <exec_depend>wifi_rtt_interface</exec_depend>
   <exec_depend>teleop_twist_keyboard</exec_depend>

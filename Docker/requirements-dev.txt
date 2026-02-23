@@ -11,9 +11,10 @@ flake8>=6.1.0,<8.0.0
 pre-commit>=3.6.0,<4.0.0
 
 # project dependencies
-g2o-python>=0.1.0,<1.0.0
+g2opy>=2.2.0,<3.0.0                                       
 numpy>=1.26.0,<2.0.0
 scipy>=1.13.0,<2.0.0
+pyoctomap>=0.1.0,<1.0.0
 
 # others (PyYAML for yaml.safe_load etc.)
 pyyaml>=6.0

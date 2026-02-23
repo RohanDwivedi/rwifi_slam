@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import numpy as np
-import rclpy
 from geometry_msgs.msg import Quaternion, Vector3
 from rclpy.logging import get_logger
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import Imu
-from tf2_ros import Buffer, TransformException, TransformStamped
+from tf2_ros import TransformStamped
 
 _logger = get_logger(__name__)
 
@@ -85,8 +84,8 @@ def rotate_vector_by_quaternion(q: Quaternion, v: Vector3) -> Vector3:
     Returns:
         Rotated vector as a geometry_msgs Vector3.
     """
-    r = Rotation.from_quat([q.x, q.y, q.z, q.w])
-    v_rot = r.apply([v.x, v.y, v.z])
+    rotation = Rotation.from_quat([q.x, q.y, q.z, q.w])
+    v_rot = rotation.apply([v.x, v.y, v.z])
     return Vector3(x=v_rot[0], y=v_rot[1], z=v_rot[2])
 
 
@@ -100,9 +99,9 @@ def quaternion_multiply(q1: Quaternion, q2: Quaternion) -> Quaternion:
     Returns:
         Product quaternion as geometry_msgs Quaternion.
     """
-    r1 = Rotation.from_quat([q1.x, q1.y, q1.z, q1.w])
-    r2 = Rotation.from_quat([q2.x, q2.y, q2.z, q2.w])
-    xyzw = (r1 * r2).as_quat()
+    rotation1 = Rotation.from_quat([q1.x, q1.y, q1.z, q1.w])
+    rotation2 = Rotation.from_quat([q2.x, q2.y, q2.z, q2.w])
+    xyzw = (rotation1 * rotation2).as_quat()
     return Quaternion(x=xyzw[0], y=xyzw[1], z=xyzw[2], w=xyzw[3])
 
 
@@ -134,35 +133,3 @@ def transform_imu_with_tf(msg: Imu, tf: TransformStamped, to_frame: str) -> Imu:
 
     _logger.debug(f"Transformed IMU from {msg.header.frame_id} to frame {to_frame}")
     return out
-
-
-def get_static_transform(
-    tf_buffer: Buffer,
-    from_frame: str,
-    to_frame: str,
-) -> TransformStamped:
-    """Look up the static transform from one frame to another.
-
-    Args:
-        tf_buffer: TF2 buffer for lookup.
-        from_frame: Source frame ID.
-        to_frame: Target frame ID.
-
-    Returns:
-        Transform from from_frame to to_frame.
-
-    Raises:
-        TransformException: If the transform is not available.
-    """
-    try:
-        transform = tf_buffer.lookup_transform(
-            to_frame,
-            from_frame,
-            rclpy.time.Time(),
-            timeout=rclpy.duration.Duration(seconds=0),
-        )
-    except TransformException as e:
-        raise TransformException(f"Transform {from_frame} -> {to_frame} unavailable: {e}") from e
-
-    _logger.debug(f"Static transform {from_frame} -> {to_frame} looked up successfully")
-    return transform
