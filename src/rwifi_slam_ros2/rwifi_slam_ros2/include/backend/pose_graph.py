@@ -13,6 +13,7 @@ import numpy as np
 from builtin_interfaces.msg import Time
 from geometry_msgs.msg import PoseWithCovariance
 from rclpy.logging import get_logger
+from rclpy.parameter import Parameter
 from rwifi_slam_ros2.common.utils import inv_SE3, pose_from_se3, relative_pose_covariance, se3_from_pose
 
 _logger = get_logger(__name__)
@@ -52,24 +53,16 @@ class Graph:
     in parallel lists keyed by node index.
     """
 
-    def __init__(
-        self,
-        robustness_threshold: float = 0.5,
-        verbose: bool = False,
-        optimization_iterations: int = 10,
-    ) -> None:
+    def __init__(self, parameters: dict[str, Parameter]) -> None:
         """Initialize the pose graph and g2o optimizer.
 
         Args:
-            robustness_threshold: Delta for the DCS robust kernel on loop-closure
-                edges. Defaults to 0.5.
-            verbose: If True, enable g2o optimizer verbose output. Defaults to False.
-            optimization_iterations: Number of Levenberg-Marquardt iterations for
-                optimize(). Defaults to 10.
+            parameters: ROS parameters (robustness_threshold, optimization_iterations,
+                verbose).
         """
-        self._robustness_threshold = robustness_threshold
-        self._verbose = verbose
-        self._optimization_iterations = optimization_iterations
+        self._robustness_threshold: float = parameters["robustness_threshold"].value
+        self._verbose: bool = parameters["verbose"].value
+        self._optimization_iterations: int = parameters["optimization_iterations"].value
         self._observations: list[np.ndarray] = []
         self._timestamps: list[Time] = []
         self._covariances: list[list[float]] = []
@@ -77,7 +70,7 @@ class Graph:
 
         self._opt = g2o.SparseOptimizer()
         self._opt.set_algorithm(g2o.OptimizationAlgorithmLevenberg(g2o.BlockSolverSE3(g2o.LinearSolverEigenSE3())))
-        self._opt.set_verbose(verbose)
+        self._opt.set_verbose(self._verbose)
 
     @property
     def nodes_length(self) -> int:

@@ -25,3 +25,9 @@ MAP_QOS_PROFILE: QoSProfile = QoSProfile(
     history=QoSHistoryPolicy.KEEP_LAST,
     depth=10,
 )
+
+DEPTH_QOS_PROFILE: QoSProfile = QoSProfile(
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
+    history=QoSHistoryPolicy.KEEP_LAST,
+    depth=1,
+)

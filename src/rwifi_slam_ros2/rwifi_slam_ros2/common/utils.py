@@ -19,8 +19,8 @@ def skew(v: np.ndarray) -> np.ndarray:
     Returns:
         3x3 skew-symmetric matrix such that skew(v) @ w = v x w.
     """
-    x, y, z = v
-    return np.array([[0.0, -z, y], [z, 0.0, -x], [-y, x, 0.0]], dtype=float)
+    vx, vy, vz = v
+    return np.array([[0.0, -vz, vy], [vz, 0.0, -vx], [-vy, vx, 0.0]], dtype=float)
 
 
 def adjoint_SE3(T: np.ndarray) -> np.ndarray:
@@ -32,14 +32,14 @@ def adjoint_SE3(T: np.ndarray) -> np.ndarray:
     Returns:
         6x6 adjoint matrix Ad(T) for Lie algebra covariance propagation.
     """
-    R = T[:3, :3]
-    t = T[:3, 3]
-    Adj = np.zeros((6, 6), dtype=float)
-    Adj[:3, :3] = R
-    Adj[3:, 3:] = R
-    Adj[:3, 3:] = np.zeros((3, 3), dtype=float)
-    Adj[3:, :3] = skew(t) @ R
-    return Adj
+    rotation = T[:3, :3]
+    translation = T[:3, 3]
+    adj = np.zeros((6, 6), dtype=float)
+    adj[:3, :3] = rotation
+    adj[3:, 3:] = rotation
+    adj[:3, 3:] = np.zeros((3, 3), dtype=float)
+    adj[3:, :3] = skew(translation) @ rotation
+    return adj
 
 
 def inv_SE3(T: np.ndarray) -> np.ndarray:
@@ -51,12 +51,12 @@ def inv_SE3(T: np.ndarray) -> np.ndarray:
     Returns:
         4x4 inverse transformation T^{-1}.
     """
-    R = T[:3, :3]
-    t = T[:3, 3]
-    Ti = np.eye(4, dtype=float)
-    Ti[:3, :3] = R.T
-    Ti[:3, 3] = -R.T @ t
-    return Ti
+    rotation = T[:3, :3]
+    translation = T[:3, 3]
+    inv_transform = np.eye(4, dtype=float)
+    inv_transform[:3, :3] = rotation.T
+    inv_transform[:3, 3] = -rotation.T @ translation
+    return inv_transform
 
 
 def regularise_covariance(Sigma: np.ndarray, eps: float = 1e-8) -> np.ndarray:
@@ -73,8 +73,8 @@ def regularise_covariance(Sigma: np.ndarray, eps: float = 1e-8) -> np.ndarray:
     Returns:
         Symmetric n x n matrix Sigma + eps * I (same shape and dtype as Sigma).
     """
-    n = Sigma.shape[0]
-    return Sigma + eps * np.eye(n, dtype=Sigma.dtype)
+    size = Sigma.shape[0]
+    return Sigma + eps * np.eye(size, dtype=Sigma.dtype)
 
 
 def _needs_regularisation(Sigma: np.ndarray, min_eig_threshold: float = 1e-10) -> bool:
@@ -149,11 +149,12 @@ def se3_from_pose(pose: PoseWithCovariance) -> np.ndarray:
         from position).
     """
     yaw = quaternion_to_yaw(pose.pose.orientation)
-    c, s = np.cos(yaw), np.sin(yaw)
-    T = np.eye(4, dtype=np.float64)
-    T[0:2, 0:2] = np.array([[c, -s], [s, c]])
-    T[0:3, 3] = np.array([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z])
-    return T
+    cos_yaw = np.cos(yaw)
+    sin_yaw = np.sin(yaw)
+    transform = np.eye(4, dtype=np.float64)
+    transform[0:2, 0:2] = np.array([[cos_yaw, -sin_yaw], [sin_yaw, cos_yaw]])
+    transform[0:3, 3] = np.array([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z])
+    return transform
 
 
 def pose_from_se3(T: np.ndarray, covariance: list[float] | None = None) -> PoseWithCovariance:
