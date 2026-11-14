@@ -194,6 +194,8 @@ jobs:
           LATEST: ${{ needs.validate.outputs.latest }}
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/rwifi_slam:$VERSION"
+          # The backticks are a literal Markdown code fence, not command substitution.
+          # shellcheck disable=SC2016
           notes=$(printf 'Docker image:\n\n```bash\ndocker pull %s\n```\n' "$image")
 
           if gh release view "$TAG" >/dev/null 2>&1; then
