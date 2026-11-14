@@ -24,9 +24,6 @@
                 "python.linting.enabled": true,
                 "python.linting.pylintEnabled": false,
                 "python.formatting.provider": "black",
-                "python.formatting.blackArgs": [
-                    "--line-length=88"
-                ],
                 "editor.formatOnSave": true,
                 "editor.codeActionsOnSave": {
                     "source.organizeImports": "explicit"
@@ -44,5 +41,5 @@
                 }
             }
         }
-    },
+    }
 }

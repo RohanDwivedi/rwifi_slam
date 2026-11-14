@@ -1,217 +1,186 @@
 # rwifi_slam
 
-WiFi based Simultaneous Localization and Mapping (SLAM) system for indoor environments
+[![CI](https://github.com/RohanDwivedi/rwifi_slam/actions/workflows/ci.yml/badge.svg)](https://github.com/RohanDwivedi/rwifi_slam/actions/workflows/ci.yml)
+[![ROS 2 Jazzy](https://img.shields.io/badge/ROS%202-Jazzy-22314E)](https://docs.ros.org/en/jazzy/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-## Overview
+Wi-Fi round-trip-time (RTT) SLAM for indoor robots, built on ROS 2 Jazzy and simulated in
+NVIDIA Isaac Sim.
 
-rwifi_slam is a WiFi based SLAM system for localization and mapping in indoor environments.
-The project provides a complete development environment including Docker containers, Isaac Sim integration for simulation, 
-and ROS2 packages for real-world deployment.
+> [!NOTE]
+> **Status: research prototype.** The whole pipeline runs in simulation, but the pose-graph
+> back end has known correctness issues and there is no quantitative evaluation yet. See the
+> [roadmap](docs/ROADMAP.md) for what is planned and what to expect.
 
-## Features
+## How it works
 
-- **ROS2 Integration**: Built on ROS2 Jazzy for modern robotics development
-- **Isaac Sim Support**: GPU-accelerated simulation environment using NVIDIA Isaac Sim 6.0
-- **Docker Development**: Containerized development environment with GPU support
-- **WiFi Localization**: WiFi-based positioning capabilities
-- **LiDAR Mapping**: Depth mapping and SLAM functionality
+Wi-Fi RTT (IEEE 802.11mc Fine Timing Measurement) measures the distance from the robot to
+each access point. The project follows the idea behind
+[rWiFiSLAM](https://arxiv.org/abs/2212.08418): the vector of ranges to all visible access
+points works as a fingerprint of the robot's location. When the current fingerprint closely
+matches one recorded earlier, the robot has probably returned to the same place. That match
+becomes a loop-closure constraint that corrects accumulated odometry drift. Access point
+positions are never needed.
 
-## Prerequisites
+```mermaid
+flowchart LR
+    odom["/chassis/odom"] --> ekf
+    imu["/chassis/imu"] --> ekf
+    ekf["EKF<br/>wheel odom + IMU"] --> kf["Keyframe<br/>selection"]
+    rtt["/wifi_rtt_scan"] --> kf
+    kf --> lc["Loop closure<br/>range-vector matching"]
+    kf --> pg["g2o pose graph"]
+    lc --> pg
+    pg --> tf["map → odom TF<br/>/pose, /trajectory"]
+    depth["/camera_depth/depth_pcl"] --> om["OctoMap"]
+    tf --> om
+    om --> map["/map"]
+```
 
-### System Requirements
+1. An **EKF** fuses wheel odometry and IMU into `/odom_filtered`.
+2. On every RTT scan, a **keyframe** is added if the robot has moved more than
+   `distance_interval` or turned more than `yaw_interval`.
+3. **Loop closure** compares the new keyframe's range vector with earlier keyframes, using a
+   distance threshold, a ratio test, and an exclusion window for recent keyframes.
+4. A **g2o pose graph** with odometry edges and robust (DCS) loop-closure edges is optimised
+   whenever a loop closes. The result is published as the `map → odom` transform and on
+   `/trajectory`.
+5. **Depth point clouds** are inserted into an OctoMap, and a 2D slice is published as
+   `/map`.
 
-- **OS**: Linux (Ubuntu 22.04 recommended)
-- **GPU**: NVIDIA GPU with CUDA support (required for Isaac Sim) (optional)
-- **Docker**: Docker Engine with NVIDIA Container Toolkit
-- **RAM**: Minimum 16GB (32GB recommended for Isaac Sim)
-- **Disk Space**: At least 50GB free space
+In simulation, a precomputed line-of-sight map of the Isaac Sim warehouse adds realistic
+non-line-of-sight (NLOS) bias, hardware bias, and heavy-tailed noise to the true ranges.
 
-### Required Software
+## Repository layout
 
-- Docker Engine 20.10+
-- Docker Compose 2.0+
-- NVIDIA Driver 535+ (for Isaac Sim 6.0)
-- NVIDIA Container Toolkit
+| Path | Contents |
+|---|---|
+| [`src/rwifi_slam_ros2`](src/rwifi_slam_ros2) | SLAM node: EKF, loop closure, pose graph, OctoMap, launch files, RViz config |
+| [`src/wifi_rtt_interface`](src/wifi_rtt_interface) | RTT publisher node with an Isaac Sim backend (Android planned) |
+| [`src/wifi_rtt_msgs`](src/wifi_rtt_msgs) | `APRange` and `APRangeObservation` messages |
+| [`src/simulation`](src/simulation) | Isaac Sim entry point, warehouse config, NLOS map precomputation, robot and AP assets |
+| [`Docker`](Docker) | Development and release images, Compose file, lint configuration |
+| [`scripts`](scripts) | Docker, Isaac Sim, and host setup helpers |
+| [`docs`](docs) | [Roadmap](docs/ROADMAP.md) |
 
-## Quick Start
+## Quick start
 
-### 1. Install Prerequisites
+### Requirements
 
-#### Install Docker
+- Linux x86_64 with Docker Engine and the Compose plugin
+  ([`scripts/install-docker.sh`](scripts/install-docker.sh) installs both on Ubuntu 24.04)
+- For the simulator only: an NVIDIA RTX GPU, a recent NVIDIA driver, and the NVIDIA
+  Container Toolkit
+  ([`scripts/install-nvidia-isaac-sim-dependencies.sh`](scripts/install-nvidia-isaac-sim-dependencies.sh)),
+  plus about 50 GB of free disk space for an Isaac Sim build
+
+The ROS packages build and their tests run without a GPU.
+
+### 1. Build and enter the development container
+
 ```bash
-./scripts/install-docker.sh
+git clone https://github.com/RohanDwivedi/rwifi_slam.git
+cd rwifi_slam
+docker compose -f Docker/compose.yaml run --rm dev
 ```
 
-#### Install NVIDIA Driver and Container Toolkit
-```bash
-./scripts/install_nvidia_isaac_sim.sh
-sudo reboot  # Required after driver installation
-```
+The first run builds the `rwifi_slam:dev` image. On start, the container builds the
+workspace mounted at `/ros2_ws/src`, so you land in a shell with everything sourced. VS Code
+users can choose **Dev Containers: Reopen in Container** instead.
 
-### 2. Build Development Environment
+### 2. Build Isaac Sim (once, for simulation)
 
-#### Build Docker Image
-```bash
-# Build development image (default)
-./scripts/build-docker.sh dev
-
-# Build release image
-./scripts/build-docker.sh rel
-```
-
-#### Build Isaac Sim Locally (Optional)
-If you need to build Isaac Sim from source:
-```bash
-./scripts/build-isaac-sim-local.sh
-```
-
-### 3. Run Development Container
+Inside the container:
 
 ```bash
-cd Docker
-docker compose run dev
+/ros2_ws/scripts/build-isaac-sim-local.sh
 ```
 
-Or using VS Code Dev Containers:
-- Open the project in VS Code
-- Press `F1` → "Dev Containers: Reopen in Container"
+This clones Isaac Sim 6.0 into `src/simulation/isaac_sim_dev/isaac-sim-6.0/`, which is
+git-ignored and persists on the host through the `src/` mount, and builds it there.
 
-## Project Structure
+### 3. Run the SLAM stack
 
+```bash
+ros2 launch rwifi_slam_ros2 rwifi_slam.launch.py
 ```
-rwifi_slam/
-├── Docker/                 # Docker configuration files
-│   ├── dockerfile.dev      # Development container Dockerfile
-│   ├── dockerfile.rel      # Release container Dockerfile
-│   ├── compose.yaml        # Docker Compose configuration
-│   └── entrypoint.sh       # Container entrypoint script
-├── scripts/                # Utility scripts
-│   ├── build-docker.sh     # Build Docker images (dev/rel)
-│   ├── build-isaac-sim-local.sh
-│   ├── install-docker.sh
-│   └── install_nvidia_isaac_sim.sh
-├── src/
-│   ├── rwifi_slam_ros2/    # Main ROS2 package
-│   └── simulation/        # Isaac Sim simulation code
-│       └── isaac_sim_dev/ # Isaac Sim development environment
-└── .devcontainer/         # VS Code Dev Container configuration
+
+This starts Isaac Sim with the warehouse scene, the RTT publisher, the SLAM node (configured
+and activated by a lifecycle manager), and RViz. Drive the robot from a second shell:
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
+
+Useful launch arguments:
+
+| Argument | Default | Description |
+|---|---|---|
+| `headless` | `false` | Run Isaac Sim without its GUI |
+| `launch_simulation` | `true` | Set to `false` if Isaac Sim is already running |
+| `use_rviz` | `true` | Start RViz |
+| `log_level` | `info` | Log level of the SLAM node |
+
+### Run the tests
+
+```bash
+cd /ros2_ws
+colcon test --event-handlers console_direct+
+colcon test-result --verbose
+```
+
+## ROS interface
+
+| Topic | Type | Direction |
+|---|---|---|
+| `/chassis/odom` | `nav_msgs/Odometry` | in |
+| `/chassis/imu` | `sensor_msgs/Imu` | in |
+| `/wifi_rtt_scan` | `wifi_rtt_msgs/APRangeObservation` | in |
+| `/camera_depth/depth_pcl` | `sensor_msgs/PointCloud2` | in |
+| `/odom_filtered` | `nav_msgs/Odometry` | out |
+| `/pose` | `geometry_msgs/PoseWithCovarianceStamped` | out |
+| `/trajectory` | `nav_msgs/Path` | out |
+| `/map` | `nav_msgs/OccupancyGrid` | out |
+
+The node broadcasts `map → odom` on TF. Parameters, frames, and launch files are documented
+in the [`rwifi_slam_ros2` README](src/rwifi_slam_ros2/README.md).
 
 ## Development
 
-### Pre-commit (formatting & linting)
-
-Install hooks to run **Black** (formatting), **isort** (import sorting), **flake8** (linting), **pydocstyle** (docstrings), and **yamllint** (YAML) before each commit:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code style, tests, and the release process.
+In short:
 
 ```bash
-pip install -r Docker/requirements-dev.txt
+pip install pre-commit
 pre-commit install
 ```
 
-Run on all files: `pre-commit run --all-files`. Configuration: `Docker/pyproject.toml`, `Docker/.flake8`.
+CI runs the same pre-commit hooks, then builds and tests the workspace in a ROS 2 Jazzy
+container.
 
-### Building ROS2 Packages
+## Roadmap
 
-Inside the development container:
-```bash
-cd /ros2_ws
-source /opt/ros/jazzy/setup.bash
-colcon build --symlink-install
-source install/setup.bash
-```
+The near-term work is to make the pose-graph corrections persist, add a ground-truth
+evaluation, and improve loop-closure detection. The details are in the
+[roadmap](docs/ROADMAP.md).
 
-### Running Simulation
+## Acknowledgements
 
-#### Using Isaac Sim
-```bash
-# From within the container
-isaac-wildslam --robot nova_carter --scene warehouse
+The approach is based on:
 
-# Or headless mode
-isaac-wildslam --robot nova_carter --scene warehouse --headless
-```
+> B. Wei, M. Gao, F. Li, C. Luo, S. Wang, and J. Zhang, "rWiFiSLAM: Effective WiFi Ranging
+> Based SLAM System in Ambient Environments," *IEEE Robotics and Automation Letters*,
+> vol. 9, no. 6, pp. 5362–5369, 2024. doi:[10.1109/LRA.2024.3390548](https://doi.org/10.1109/LRA.2024.3390548),
+> [arXiv:2212.08418](https://arxiv.org/abs/2212.08418)
 
-#### Available Robots
-- `nova_carter` (default)
-
-#### Available Scenes
-- `warehouse` (default)
-
-### ROS2 Domain Configuration
-
-The project uses ROS Domain ID 42 by default. To change it:
-```bash
-export ROS_DOMAIN_ID=<your_domain_id>
-```
-
-## Docker Configuration
-
-The development container includes:
-- ROS2 Jazzy Desktop
-- Python 3 with development tools
-- Pre-built ROS2 workspace
-- Isaac Sim integration
-- GPU support via NVIDIA Container Toolkit
-
-See [Docker/README.md](Docker/README.md) for detailed Docker documentation.
-
-## Scripts
-
-Utility scripts are available in the `scripts/` directory:
-- `build-docker.sh`: Build Docker images (dev or rel)
-- `build-isaac-sim-local.sh`: Build Isaac Sim from source
-- `install-docker.sh`: Install Docker Engine
-- `install_nvidia_isaac_sim.sh`: Install NVIDIA drivers and Container Toolkit
-
-See [scripts/README.md](scripts/README.md) for detailed script documentation.
-
-## Simulation
-
-The simulation environment uses NVIDIA Isaac Sim 6.0 for high-fidelity robot simulation. See [src/simulation/README.md](src/simulation/README.md) for simulation-specific documentation.
-
-## ROS2 Package
-
-The main ROS2 package `rwifi_slam_ros2` provides SLAM functionality. See [src/rwifi_slam_ros2/README.md](src/rwifi_slam_ros2/README.md) for package-specific documentation.
-
-## Troubleshooting
-
-### GPU Not Detected in Container
-```bash
-# Verify NVIDIA Container Toolkit
-docker run --rm --gpus all nvidia/cuda:11.0.3-base-ubuntu20.04 nvidia-smi
-
-# Check Docker Compose GPU configuration
-docker compose config
-```
-
-### Isaac Sim Build Issues
-- Ensure you have sufficient disk space (50GB+)
-- Check NVIDIA driver version: `nvidia-smi`
-- Verify CUDA compatibility
-
-### ROS2 Communication Issues
-- Check ROS_DOMAIN_ID matches across all nodes
-- Verify network configuration for multi-machine setups
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+This repository is an independent implementation and is not affiliated with the paper's
+authors. It also builds on [ROS 2](https://docs.ros.org/), [NVIDIA Isaac Sim](https://github.com/isaac-sim/IsaacSim),
+[g2o](https://github.com/RainerKuemmerle/g2o), and [OctoMap](https://octomap.github.io/).
 
 ## License
 
-This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+[Apache License 2.0](LICENSE).
 
 ## Maintainer
 
-- **Rohan Dwivedi** - myemail.rohan@gmail.com
-
-## Acknowledgments
-
-- NVIDIA Isaac Sim team for the simulation platform
-- ROS2 community for the robotics framework
-- rWiFiSLAM: Effective WiFi Ranging based SLAM System in Ambient Environments
-  Bo Wei1∗, Mingcen Gao2, Chengwen Luo3, Sen Wang4, Jin Zhang3
+Rohan Dwivedi ([@RohanDwivedi](https://github.com/RohanDwivedi)), myemail.rohan@gmail.com

@@ -1,5 +1,5 @@
 [tool.black]
-line-length = 120 
+line-length = 120
 target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
 include = '\.pyi?$'
 extend-exclude = '''
@@ -37,4 +37,3 @@ skip_glob = [
 convention = "google"
 add_ignore = ["D100", "D104"]
 match-dir = '^(?!.*(\.eggs|\.git|\.hg|\.mypy_cache|\.tox|\.venv|build|dist|isaac-sim-6\.0|__pycache__)).*'
-

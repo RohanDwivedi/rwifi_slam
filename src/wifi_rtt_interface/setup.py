@@ -18,10 +18,10 @@ setup(
     ],
     install_requires=["setuptools", "numpy", "scipy"],
     zip_safe=True,
-    maintainer="root",
+    maintainer="Rohan Dwivedi",
     maintainer_email="myemail.rohan@gmail.com",
-    description="Wi-Fi RTT publisher with simulation and Android API backends for ROS 2.",
-    license="Apache 2.0",
+    description="Publishes Wi-Fi RTT range observations from Isaac Sim (Android backend planned).",
+    license="Apache-2.0",
     extras_require={
         "test": [
             "pytest",

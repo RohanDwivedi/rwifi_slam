@@ -1,214 +1,120 @@
 # Simulation
 
-This directory contains the Isaac Sim simulation environment for WiLD-SLAM.
+NVIDIA Isaac Sim 6.0 environment for rwifi_slam: a warehouse scene, a Nova Carter robot
+with IMU, RGB-D camera, and a Wi-Fi antenna, and five Wi-Fi access points. On first run it
+precomputes the line-of-sight map that the RTT simulator in
+[`wifi_rtt_interface`](../wifi_rtt_interface) uses.
 
-## Overview
+This directory is not a ROS package; `COLCON_IGNORE` keeps colcon out of it.
 
-The simulation environment uses NVIDIA Isaac Sim 6.0 to provide high-fidelity robot simulation with GPU-accelerated physics and rendering. The simulation integrates with ROS2 for robot control and sensor data.
-
-## Directory Structure
+## Layout
 
 ```
-simulation/
-├── isaac_sim_dev/          # Isaac Sim development environment
-│   ├── main.py             # Main simulation entry point
-│   ├── assets/             # USD assets (robots, scenes)
-│   │   ├── robots/        # Robot USD files
-│   │   └── scenes/        # Scene/environment USD files
-│   ├── configs/            # Robot configuration files
-│   └── isaac-sim-6.0/     # Isaac Sim source/build (gitignored)
-└── COLCON_IGNORE          # Prevents colcon from building this directory
+simulation/isaac_sim_dev/
+├── main.py                       # Entry point: load config, spawn scene/robot/APs, run the sim loop
+├── include/precompute_nlos.py    # Raycast-based NLOS map generation and visualisation
+├── configs/
+│   ├── isaac_sim_warehouse_config.yaml   # Robot, scene, and access point configuration
+│   └── warehouse_nlos_map.pkl            # Cached NLOS map for the warehouse
+├── assets/
+│   ├── robots/nova_carter_ROS_rgbd.usda  # Nova Carter with RGB-D camera and Wi-Fi antenna
+│   └── sensors/wifi_access_point/        # Access point model
+└── isaac-sim-6.0/                # Local Isaac Sim build (git-ignored)
 ```
 
-## Prerequisites
+## Building Isaac Sim
 
-- NVIDIA GPU with CUDA support
-- Isaac Sim 6.0 (built locally or mounted)
-- ROS2 Jazzy (in development container)
+Run this inside the development container:
 
-## Running the Simulation
-
-### Using the Alias (Recommended)
-
-After building Isaac Sim, an alias is created:
 ```bash
-isaac-wildslam --robot nova_carter --scene warehouse
+/ros2_ws/scripts/build-isaac-sim-local.sh
 ```
 
-### Direct Execution
+The script clones Isaac Sim `v6.0.0-dev` into `isaac_sim_dev/isaac-sim-6.0/IsaacSim` and builds
+it. Use `--fast-rebuild` or `--rebuild` to rebuild, and `--help` for all options.
 
-From within the development container:
+## Running
+
+The usual way is the SLAM launch file, which starts the simulator for you:
+
 ```bash
-/ros2_ws/src/simulation/isaac_sim_dev/isaac-sim-6.0/IsaacSim/_build/linux-x86_64/release/python.sh \
-  /ros2_ws/src/simulation/isaac_sim_dev/main.py \
-  --robot nova_carter \
-  --scene warehouse
+ros2 launch rwifi_slam_ros2 rwifi_slam.launch.py           # with the Isaac Sim GUI
+ros2 launch rwifi_slam_ros2 rwifi_slam.launch.py headless:=true
 ```
 
-### Command Line Arguments
+To run the simulator on its own:
 
-- `--robot <name>`: Robot to simulate (default: `nova_carter`)
-- `--scene <name>`: Scene/environment to load (default: `warehouse`)
-- `--headless`: Run simulation without GUI (for headless servers)
-
-**Examples:**
 ```bash
-# Run with GUI
-isaac-wildslam --robot nova_carter --scene warehouse
-
-# Run headless
-isaac-wildslam --robot nova_carter --scene warehouse --headless
-
-# Use different robot/scene
-isaac-wildslam --robot my_robot --scene my_scene
+cd /ros2_ws/src/simulation/isaac_sim_dev
+./isaac-sim-6.0/IsaacSim/_build/linux-x86_64/release/python.sh main.py \
+  --config configs/isaac_sim_warehouse_config.yaml
 ```
 
-## Available Robots
+| Option | Description |
+|---|---|
+| `--config PATH` | Simulation config (default: `configs/isaac_sim_warehouse_config.yaml`) |
+| `--headless` | Run without the GUI |
+| `--visualize-nlos` | Draw the NLOS map in the viewport (green = line of sight to every AP, red = to none) |
 
-### nova_carter
-- **Asset**: `assets/robots/nova_carter.usda`
-- **Config**: `configs/nova_carter.yaml`
-- **Spawn Point**: Configured in YAML file
+## Configuration
 
-### Adding New Robots
-
-1. **Create Robot USD Asset**
-   - Place robot USD/USDA file in `assets/robots/<robot_name>.usda`
-   - Ensure proper USD structure with joints, links, etc.
-
-2. **Create Configuration File**
-   - Create `configs/<robot_name>.yaml`
-   - Define spawn point:
-     ```yaml
-     spawn_point:
-       position:
-         x: 0.0
-         y: 0.0
-         z: 0.0
-       rotation:
-         roll: 0.0
-         pitch: 0.0
-         yaw: 0.0
-     ```
-
-3. **Test**
-   ```bash
-   isaac-wildslam --robot <robot_name> --scene warehouse
-   ```
-
-## Available Scenes
-
-### warehouse
-- **Asset**: `assets/scenes/warehouse.usda`
-- Default warehouse environment
-
-### Adding New Scenes
-
-1. **Create Scene USD Asset**
-   - Place scene USD/USDA file in `assets/scenes/<scene_name>.usda`
-   - Ensure scene has proper structure (ground plane, obstacles, etc.)
-
-2. **Test**
-   ```bash
-   isaac-wildslam --robot nova_carter --scene <scene_name>
-   ```
-
-## Configuration Files
-
-Robot configuration files are YAML files located in `configs/`. They define:
-- **Spawn Point**: Initial position and orientation of the robot
-  - `position`: x, y, z coordinates (meters)
-  - `rotation`: roll, pitch, yaw angles (degrees)
-
-**Example:**
 ```yaml
-spawn_point:
-  position:
-    x: 0.0
-    y: 0.0
-    z: 0.5
-  rotation:
-    roll: 0.0
-    pitch: 0.0
-    yaw: 0.0
+robot:
+  name: nova_carter
+  usd_path: "/ros2_ws/src/simulation/isaac_sim_dev/assets/robots/nova_carter_ROS_rgbd.usda"
+  spawn_point:
+    position: [0.0, 0.0, 0.0]
+    orientation: [1.0, 0.0, 0.0, 0.0]   # quaternion [w, x, y, z]
+  antenna_height: 0.6                   # z of the NLOS grid; must match base_link -> chassis_wifi
+
+scene:
+  name: warehouse                       # also names the cached map: configs/<name>_nlos_map.pkl
+  usd_path: "/Isaac/Environments/Simple_Warehouse/full_warehouse.usd"
+  resolution: 0.25                      # NLOS grid cell size (m)
+
+access_points:
+  - name: AP1
+    position: [-4.5, -23.24, 3.2]
+    orientation: [0.70, -0.70, 0.0, 0.0] # quaternion [w, x, y, z]
+    mac_address: "00:00:00:00:00:01"
 ```
 
-## Isaac Sim Integration
+`usd_path` can be a local file, a path relative to `isaac_sim_dev/`, or a path on the Isaac
+Sim asset server.
 
-### Isaac Sim Location
+> [!IMPORTANT]
+> The RTT simulator computes ranges from the robot's position in the `odom` frame, but
+> access point positions are in world coordinates. The two agree only when the robot spawns
+> at the origin with identity orientation `[1, 0, 0, 0]`. The shipped config uses
+> `[0, 0, 0, 1]`, a 180° yaw in Isaac's `[w, x, y, z]` convention. This is tracked as
+> [M4.2](../../docs/ROADMAP.md#m4-simulation-fidelity) in the roadmap.
 
-Isaac Sim is expected at:
-```
-/ros2_ws/src/simulation/isaac_sim_dev/isaac-sim-6.0/
-```
+## NLOS map
 
-This directory is:
-- Mounted as a volume in Docker containers
-- Gitignored (not committed to repository)
-- Built locally using `build-isaac-sim-local.sh`
+On start-up, `main.py` loads `configs/<scene name>_nlos_map.pkl` if it exists; otherwise it
+computes the map and saves it. Computing it raycasts from every access point to every grid
+cell, which takes a while.
 
-### Building Isaac Sim
+> [!WARNING]
+> The cached map is reused even if you change the access points or the scene. Delete the
+> `.pkl` file after editing the config to regenerate it.
 
-See [scripts/README.md](../../scripts/README.md) for building instructions:
-```bash
-./scripts/build-isaac-sim-local.sh
-```
+## Adding a robot or scene
 
-## ROS2 Integration
+1. Put the USD file under `assets/`, or point at an asset-server path.
+2. Copy `configs/isaac_sim_warehouse_config.yaml` and edit `robot`, `scene`, and
+   `access_points`.
+3. Pass the new file with `--config`, or to the launch file with `config:=<path>`.
 
-The simulation can integrate with ROS2 for:
-- Robot control (joint commands, velocity commands)
-- Sensor data publishing (LiDAR, cameras, IMU)
-- TF transforms
-- ROS2 topics and services
-
-**Note**: ROS2 integration is configured separately in the ROS2 packages.
+A new robot must publish the same topics and frames as the Nova Carter asset
+(`/chassis/odom`, `/chassis/imu`, `/camera_depth/depth_pcl`, and TF for `chassis_imu` and
+`chassis_wifi`), or the SLAM node's parameters must be changed to match.
 
 ## Troubleshooting
 
-### Simulation Won't Start
-- Check Isaac Sim build: `ls isaac-sim-6.0/IsaacSim/_build`
-- Verify GPU access: `nvidia-smi`
-- Check USD assets exist: `ls assets/robots/` and `ls assets/scenes/`
-
-### Robot Not Visible
-- Verify robot USD file loads correctly
-- Check spawn point configuration
-- Ensure robot is within scene bounds
-
-### Scene Not Loading
-- Verify scene USD file exists
-- Check USD file structure
-- Review console output for errors
-
-### Headless Mode Issues
-- Ensure `--headless` flag is set
-- Check DISPLAY variable (should not be set in headless)
-- Verify GPU is accessible in container
-
-### Extension Errors
-- Check Isaac Sim version compatibility
-- Verify extensions are available in Isaac Sim 6.0
-- Review extension enable logs
-
-## Development
-
-### Adding Features
-
-1. **Modify `main.py`**: Add new functionality to simulation loop
-2. **Create Assets**: Add USD files to `assets/` directories
-3. **Update Configs**: Add configuration files as needed
-4. **Test**: Run simulation and verify behavior
-
-### Debugging
-
-- Enable debug output in `main.py`
-- Use Isaac Sim's built-in debug visualization
-- Check USD stage structure: `print(stage.ExportToString())`
-- Review Isaac Sim logs
-
-## Resources
-
-- [Isaac Sim Documentation](https://docs.isaacsim.omniverse.nvidia.com/)
-- [USD Documentation](https://openusd.org/)
-- [Omniverse Python API](https://docs.omniverse.nvidia.com/kit/docs/kit-manual/)
+- **The simulator doesn't start.** Check that `isaac-sim-6.0/IsaacSim/_build/linux-x86_64/release/python.sh`
+  exists, and that `nvidia-smi` works inside the container.
+- **The RTT publisher waits for the NLOS map.** Isaac Sim is still computing it on first run.
+  The publisher waits up to five minutes.
+- **No GUI from the container.** Allow local X11 clients on the host with `xhost +local:`,
+  and check that `DISPLAY` is set.

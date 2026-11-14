@@ -3,19 +3,21 @@
 <package format="3">
   <name>wifi_rtt_interface</name>
   <version>0.0.1</version>
-  <description>Wi-Fi RTT publisher with simulation and Android API backends for ROS 2.</description>
-  <maintainer email="myemail.rohan@gmail.com">root</maintainer>
-  <license>Apache 2.0</license>
+  <description>Publishes Wi-Fi RTT range observations from a simulation backend (Isaac Sim) or, in future, Android devices.</description>
+  <maintainer email="myemail.rohan@gmail.com">Rohan Dwivedi</maintainer>
+  <license>Apache-2.0</license>
+  <url type="repository">https://github.com/RohanDwivedi/rwifi_slam</url>
+  <url type="bugtracker">https://github.com/RohanDwivedi/rwifi_slam/issues</url>
 
-  <test_depend>ament_copyright</test_depend>
-  <test_depend>ament_flake8</test_depend>
-  <test_depend>ament_pep257</test_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros_py</exec_depend>
+  <exec_depend>wifi_rtt_msgs</exec_depend>
+
   <test_depend>python3-pytest</test_depend>
-
-  <depend>geometry_msgs</depend>
-  <depend>python3-scipy</depend>
-  <depend>tf2_ros</depend>
-  <depend>wifi_rtt_msgs</depend>
 
   <export>
     <build_type>ament_python</build_type>

@@ -1,187 +1,65 @@
-# Docker Configuration
+# Docker
 
-This directory contains Docker configuration files for the rwifi_slam development environment.
+| File | Purpose |
+|---|---|
+| [`dockerfile.dev`](dockerfile.dev) | Development image `rwifi_slam:dev`. ROS 2 Jazzy desktop plus dependencies; source mounted at runtime |
+| [`dockerfile.rel`](dockerfile.rel) | Release image `ghcr.io/rohandwivedi/rwifi_slam`. Workspace built into the image; Isaac Sim not included |
+| [`compose.yaml`](compose.yaml) | `dev` and `release` services with GPU, X11, and host networking |
+| [`entrypoint.sh`](entrypoint.sh) | Sources ROS 2, builds the workspace on first start if needed, then runs the command |
+| `pyproject.toml`, `.flake8`, `.yamllint` | Lint configuration, used by pre-commit and copied into the dev image for editors |
 
-## Files
+Both images use the repository root as the build context, so run commands from there.
+[`../.dockerignore`](../.dockerignore) keeps the local Isaac Sim build and caches out of the
+context.
 
-- **`dockerfile.dev`**: Dockerfile for building the development container
-- **`dockerfile.rel`**: Dockerfile for building the release container (depends on dev image)
-- **`compose.yaml`**: Docker Compose configuration for running containers
-- **`entrypoint.sh`**: Entrypoint script that sources ROS2 environment
-- **`requirements-dev.txt`**: Python development dependencies
-
-## Building the Image
-
-### Using the Build Script
-```bash
-cd ..
-# Build development image
-./scripts/build-docker.sh dev
-
-# Build release image
-./scripts/build-docker.sh rel
-```
-
-### Manual Build
-```bash
-cd ..
-# Build development image
-docker build -f Docker/dockerfile.dev -t rwifi_slam-dev .
-
-# Build release image (requires dev image first)
-docker build -f Docker/dockerfile.rel -t ghcr.io/rohandwivedi/rwifi_slam:latest .
-```
-
-## Running the Container
-
-### Using Docker Compose (Recommended)
-```bash
-cd Docker
-docker compose run dev
-```
-
-### Using Docker Run
-```bash
-docker run -it --rm \
-  --privileged \
-  --network host \
-  --gpus all \
-  -e ROS_DOMAIN_ID=42 \
-  -e DISPLAY=$DISPLAY \
-  -v $(pwd)/../src/simulation/isaac_sim_dev/isaac-sim-6.0:/ros2_ws/src/simulation/isaac_sim_dev/isaac-sim-6.0:rw \
-  -v $(pwd)/../.isaac-sim-cache:/workspace/.isaac-sim-cache:rw \
-  ghcr.io/rohandwivedi/rwifi_slam:latest
-```
-
-## Container Features
-
-### Pre-commit (formatting & linting)
-
-From the repo root (or inside the container with the repo mounted), install the git hooks so Black, isort, flake8, pydocstyle, and yamllint run automatically before each commit:
+## Development image
 
 ```bash
-pip install -r Docker/requirements-dev.txt
-pre-commit install
+docker compose -f Docker/compose.yaml run --rm dev
 ```
 
-To run on all files: `pre-commit run --all-files`. Config lives in `Docker/pyproject.toml` (Black, isort, pydocstyle), `Docker/.flake8` (flake8), and `Docker/.yamllint` (yamllint).
+Compose builds `rwifi_slam:dev` if it is missing; to rebuild it, run
+`./scripts/build-docker.sh dev`. The container:
 
-### Pre-installed Software
-- ROS2 Jazzy Desktop
-- Python 3 with pip
-- Development tools (build-essential, cmake, git)
-- ROS2 workspace pre-built at `/ros2_ws`
-- Python development dependencies
+- mounts `src/` at `/ros2_ws/src`, including the local Isaac Sim build in
+  `src/simulation/isaac_sim_dev/isaac-sim-6.0`;
+- builds the workspace with `colcon build --symlink-install` on start, so Python changes take
+  effect without rebuilding;
+- runs as root with host networking, the GPU, and the host's X11 socket.
 
-### Environment Variables
-- `ROS_DOMAIN_ID=42`: ROS2 domain ID
-- `RMW_IMPLEMENTATION=rmw_zenoh_cpp`: ROS2 middleware implementation
-- `DISPLAY`: X11 display for GUI applications
+Run `xhost +local:` on the host once per session so GUI applications (RViz, Isaac Sim) can
+open windows.
 
-### Volume Mounts
-- **Isaac Sim**: Mounted at `/ros2_ws/src/simulation/isaac_sim_dev/isaac-sim-6.0`
-- **Cache**: Isaac Sim cache at `/workspace/.isaac-sim-cache`
+VS Code users can open the repository and run **Dev Containers: Reopen in Container**, which
+uses [`../.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json).
 
-### GPU Support
-The container is configured with:
-- `NVIDIA_VISIBLE_DEVICES=all`
-- `NVIDIA_DRIVER_CAPABILITIES=all`
-- GPU access via NVIDIA Container Toolkit
+## Release image
 
-## Development Workflow
+Published by [`release.yml`](../.github/workflows/release.yml) for every version tag:
 
-### Inside the Container
-
-1. **Source ROS2 Environment**
-   ```bash
-   source /opt/ros/jazzy/setup.bash
-   source /ros2_ws/install/setup.bash
-   ```
-
-2. **Build ROS2 Packages**
-   ```bash
-   cd /ros2_ws
-   colcon build --symlink-install
-   ```
-
-3. **Run Isaac Sim**
-   ```bash
-   isaac-wildslam --robot nova_carter --scene warehouse
-   ```
-
-### VS Code Dev Containers
-
-The project includes VS Code Dev Container configuration (`.devcontainer/devcontainer.json`):
-- Automatically opens in the Docker container
-- Pre-configured extensions (Python, ROS2, YAML, etc.)
-- Pre-configured settings (formatting, linting)
-
-To use:
-1. Open project in VS Code
-2. Press `F1` → "Dev Containers: Reopen in Container"
-
-## Image Registry
-
-The image is published to GitHub Container Registry:
-- **Image**: `ghcr.io/rohandwivedi/rwifi_slam:latest`
-- **Build**: Automated via GitHub Actions (`.github/workflows/docker-build-release.yml`)
-
-### Pulling Pre-built Image
 ```bash
 docker pull ghcr.io/rohandwivedi/rwifi_slam:latest
+docker compose -f Docker/compose.yaml run --rm release
 ```
+
+Tags are `<major>.<minor>.<patch>`, `<major>.<minor>`, and `latest`. To build it locally,
+run `./scripts/build-docker.sh rel`. Isaac Sim isn't included; to simulate, mount a local
+build at `/ros2_ws/src/simulation/isaac_sim_dev/isaac-sim-6.0`.
+
+## Environment
+
+| Variable | Value | Notes |
+|---|---|---|
+| `RMW_IMPLEMENTATION` | `rmw_fastrtps_cpp` | Set in `compose.yaml`; `rmw_zenoh_cpp` is also installed |
+| `ROS_DOMAIN_ID` | unset (0) | Export it in the container, or add it to `compose.yaml`, to isolate the robot's traffic |
+| `NVIDIA_VISIBLE_DEVICES`, `NVIDIA_DRIVER_CAPABILITIES` | `all` | GPU access through the NVIDIA Container Toolkit |
+| `DISPLAY` | from host | X11 forwarding |
 
 ## Troubleshooting
 
-### Container Won't Start
-- Check Docker daemon: `docker ps`
-- Verify NVIDIA Container Toolkit: `nvidia-ctk --version`
-- Check GPU access: `docker run --rm --gpus all nvidia/cuda:11.0.3-base-ubuntu20.04 nvidia-smi`
-
-### ROS2 Not Found
-- Ensure entrypoint script is executable: `chmod +x Docker/entrypoint.sh`
-- Check ROS2 installation: `ls /opt/ros/jazzy/`
-
-### Isaac Sim Not Found
-- Verify volume mount exists: `ls /ros2_ws/src/simulation/isaac_sim_dev/isaac-sim-6.0`
-- Check Isaac Sim build: `ls /ros2_ws/src/simulation/isaac_sim_dev/isaac-sim-6.0/IsaacSim/_build`
-
-### Display Issues
-- Set DISPLAY: `export DISPLAY=:0`
-- For X11 forwarding: `xhost +local:docker`
-- Check X11 socket: `ls /tmp/.X11-unix`
-
-## Customization
-
-### Changing ROS Domain ID
-Edit `compose.yaml`:
-```yaml
-environment:
-  - ROS_DOMAIN_ID=42  # Change this value
-```
-
-### Adding Environment Variables
-Edit `compose.yaml`:
-```yaml
-environment:
-  - ROS_DOMAIN_ID=42
-  - YOUR_VAR=value
-```
-
-### Modifying Container User
-Edit `compose.yaml`:
-```yaml
-user: "1000:1000"  # Change UID:GID
-```
-
-## Build Cache
-
-The build script uses Docker BuildKit cache for faster rebuilds:
-- Cache location: `.buildx-cache/` (in project root)
-- Cache type: Local filesystem cache
-- Cache mode: Maximum (saves all layers)
-
-To clear cache:
-```bash
-rm -rf .buildx-cache
-```
+- **GPU missing in the container:** check `docker run --rm --gpus all ubuntu nvidia-smi`. If
+  that fails, install the toolkit with `scripts/install-nvidia-isaac-sim-dependencies.sh`.
+- **The workspace build fails on start:** the entrypoint prints a warning and still opens a
+  shell. Fix the error, then run `colcon build --symlink-install`.
+- **No windows appear:** run `xhost +local:` on the host, and check `echo $DISPLAY` inside the
+  container.

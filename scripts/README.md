@@ -1,220 +1,56 @@
 # Scripts
 
-This directory contains utility scripts for setting up and building the rwifi_slam development environment.
+| Script | Run on | Purpose |
+|---|---|---|
+| [`build-docker.sh`](build-docker.sh) | host | Build the `dev` (default) or `rel` image |
+| [`build-isaac-sim-local.sh`](build-isaac-sim-local.sh) | dev container | Clone and build Isaac Sim 6.0 into `src/simulation/isaac_sim_dev/isaac-sim-6.0` |
+| [`bump-version.sh`](bump-version.sh) | host | Set the `rwifi_slam_ros2` version before tagging a release |
+| [`install-docker.sh`](install-docker.sh) | host | Install Docker Engine and the Compose plugin on Ubuntu 24.04 |
+| [`install-nvidia-isaac-sim-dependencies.sh`](install-nvidia-isaac-sim-dependencies.sh) | host | Install the NVIDIA 580 driver and the NVIDIA Container Toolkit |
+| [`cpu_governor.performance.sh`](cpu_governor.performance.sh) | host | Pin the CPU governor to `performance` for Isaac Sim |
 
-## Scripts Overview
+## `build-docker.sh`
 
-### `build-docker.sh`
-Builds Docker images for development or release.
-
-**Usage:**
 ```bash
-# Build development image (default)
-./scripts/build-docker.sh dev
-
-# Build release image
-./scripts/build-docker.sh rel
-
-# Default (builds dev if no argument provided)
-./scripts/build-docker.sh
+./scripts/build-docker.sh          # rwifi_slam:dev
+./scripts/build-docker.sh rel      # ghcr.io/$GHCR_OWNER/rwifi_slam:latest
 ```
 
-**Features:**
-- Creates Docker BuildKit builder if needed
-- Uses persistent local cache for faster rebuilds
-- For `rel`: Automatically builds dev image first (since rel depends on dev)
-- Interactive confirmation (skipped in CI/CD)
-- Dev image: `rwifi_slam-dev`
-- Rel image: `ghcr.io/rohandwivedi/rwifi_slam:latest`
+`GHCR_OWNER` defaults to `rohandwivedi`. The script asks for confirmation when run
+interactively.
 
-**Environment Variables:**
-- `BUILDER_NAME`: Docker BuildKit builder name (default: `rwifi_slam-builder`)
-- `CACHE_DIR`: Cache directory (default: `.buildx-cache`)
-- `GHCR_OWNER`: GitHub Container Registry owner (default: `rohandwivedi`)
+## `build-isaac-sim-local.sh`
 
-**Examples:**
+Run this inside the dev container. It installs build tools with `apt`, sets gcc/g++ 11 as the
+default compilers, clones Isaac Sim `v6.0.0-dev` with Git LFS, and builds it.
+
+| Option | Effect |
+|---|---|
+| `-f`, `--fast-rebuild` | Partially clean, then build |
+| `-x`, `--rebuild` | Clean, then build |
+| `-q`, `--quiet` / `-v`, `--verbose` | Build output level |
+
+## `bump-version.sh`
+
 ```bash
-# Build dev image
-GHCR_OWNER=myusername ./scripts/build-docker.sh dev
-
-# Build rel image
-GHCR_OWNER=myusername ./scripts/build-docker.sh rel
+./scripts/bump-version.sh 0.14.0
+git commit -am "Release 0.14.0"
+git tag v0.14.0
+git push origin main v0.14.0
 ```
 
----
+Pushing the tag runs the [release workflow](../.github/workflows/release.yml). It checks that
+the tag matches `package.xml`, publishes the image to GHCR, and creates a GitHub release.
 
-### `build-isaac-sim-local.sh`
-Builds NVIDIA Isaac Sim 6.0 from source locally.
+## Host setup scripts
 
-**Usage:**
-```bash
-./scripts/build-isaac-sim-local.sh [OPTIONS]
-```
+These change system configuration and need `sudo`. Read them before running.
 
-**Options:**
-- `--force, -f`: Force rebuild even if `_build` folder exists
-- `--clean-cache, -c`: Clean old Isaac Sim cache directories
-- `--help, -h`: Show help message
-
-**Features:**
-- Clones Isaac Sim repository if needed
-- Checks out Isaac Sim 6.0 patch version
-- Installs build dependencies (GCC-11, CMake, etc.)
-- Configures cache directories in `/workspace/.isaac-sim-cache`
-- Builds with ccache for faster rebuilds
-- Creates alias: `isaac-rwifi_slam`
-
-**Example:**
-```bash
-# Normal build
-./scripts/build-isaac-sim-local.sh
-
-# Force rebuild
-./scripts/build-isaac-sim-local.sh --force
-
-# Clean old caches first
-./scripts/build-isaac-sim-local.sh --clean-cache
-```
-
-**Requirements:**
-- Sufficient disk space (50GB+ recommended)
-- NVIDIA GPU with CUDA support
-- Git LFS installed
-
-**Cache Management:**
-The script uses `/workspace/.isaac-sim-cache` for:
-- Packman packages (`packman/`)
-- Pip cache (`pip/`)
-- UV cache (`uv/`)
-- Omniverse data (`ov-data/`)
-
----
-
-### `install-docker.sh`
-Installs Docker Engine and Docker Compose on Linux systems.
-
-**Usage:**
-```bash
-./scripts/install-docker.sh
-```
-
-**Features:**
-- Installs Docker Engine from official repository
-- Installs Docker Compose plugin
-- Adds current user to `docker` group
-- Configures Docker to start on boot
-
-**Post-Installation:**
-After installation, log out and log back in (or restart) for group changes to take effect.
-
-**Verify Installation:**
-```bash
-docker --version
-docker compose version
-docker ps
-```
-
----
-
-### `install_nvidia_isaac_sim.sh`
-Installs NVIDIA Driver 535 and NVIDIA Container Toolkit for Isaac Sim 6.0.
-
-**Usage:**
-```bash
-./scripts/install_nvidia_isaac_sim.sh
-```
-
-**Features:**
-- Installs NVIDIA Driver 535 (recommended for Isaac Sim 6.0)
-- Installs NVIDIA Container Toolkit
-- Configures Docker to use NVIDIA runtime
-- Restarts Docker service
-
-**Important Notes:**
-- **REBOOT REQUIRED**: System must be rebooted after driver installation
-- This script requires `sudo` privileges
-- Verifies installation with `nvidia-smi` after reboot
-
-**Post-Installation:**
-```bash
-# Reboot system
-sudo reboot
-
-# After reboot, verify:
-nvidia-smi
-
-# Verify Container Toolkit:
-docker run --rm --gpus all nvidia/cuda:11.0.3-base-ubuntu20.04 nvidia-smi
-```
-
-**Troubleshooting:**
-- If driver installation fails, check NVIDIA compatibility
-- Ensure secure boot is disabled (if applicable)
-- Check kernel logs: `dmesg | grep -i nvidia`
-
----
-
-## Common Workflows
-
-### Initial Setup
-```bash
-# 1. Install Docker
-./scripts/install-docker.sh
-# Log out and back in
-
-# 2. Install NVIDIA drivers
-./scripts/install_nvidia_isaac_sim.sh
-sudo reboot
-
-# 3. Build Docker development image
-./scripts/build-docker.sh dev
-
-# 4. (Optional) Build Isaac Sim locally
-./scripts/build-isaac-sim-local.sh
-```
-
-### Development Workflow
-```bash
-# Build/rebuild Docker development image
-./scripts/build-docker.sh dev
-
-# Run container
-cd Docker
-docker compose run dev
-```
-
-### Isaac Sim Development
-```bash
-# Build Isaac Sim (first time)
-./scripts/build-isaac-sim-local.sh
-
-# Rebuild Isaac Sim (if needed)
-./scripts/build-isaac-sim-local.sh --force
-
-# Clean old caches to free space
-./scripts/build-isaac-sim-local.sh --clean-cache
-```
-
-## Script Permissions
-
-All scripts should be executable:
-```bash
-chmod +x scripts/*.sh
-```
-
-## Error Handling
-
-All scripts use `set -e` to exit on errors. If a script fails:
-1. Check error messages in the output
-2. Verify prerequisites are met
-3. Check disk space and permissions
-4. Review logs for detailed error information
-
-## Contributing
-
-When adding new scripts:
-- Use `#!/bin/bash` shebang
-- Include `set -e` for error handling
-- Add help text with `--help` option
-- Document environment variables
-- Follow existing script patterns
+- **`install-docker.sh`** adds Docker's apt repository, installs Docker, and adds you to the
+  `docker` group. Log out and back in afterwards.
+- **`install-nvidia-isaac-sim-dependencies.sh`** *removes any installed NVIDIA driver*,
+  installs driver 580 and the container toolkit, and configures Docker's NVIDIA runtime.
+  Reboot afterwards.
+- **`cpu_governor.performance.sh`** installs a systemd unit that sets the `performance`
+  governor at boot (needs `cpupower`). It can also add `xhost +local:` to `~/.bashrc`, which
+  lets local containers open windows.

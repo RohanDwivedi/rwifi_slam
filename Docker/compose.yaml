@@ -1,6 +1,6 @@
 services:
   dev:
-    image: rwifi_slam_development
+    image: rwifi_slam:dev
     user: "root:root"
     pull_policy: missing
     build:
@@ -32,9 +32,9 @@ services:
     command: bash
 
   release:
-    image: ghcr.io/${GHCR_OWNER:-rohandwivedi}/${IMAGE_NAME:-rwifi_slam_release}:${RELEASE_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER:-rohandwivedi}/rwifi_slam:${RELEASE_TAG:-latest}
     user: "1000:1000"
-    pull_policy: build
+    pull_policy: missing
     build:
       context: ..
       dockerfile: Docker/dockerfile.rel

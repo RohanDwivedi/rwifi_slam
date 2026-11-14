@@ -33,12 +33,12 @@ echo "CPU governor set to performance."
 echo "You can check the current governor by running: cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
 echo "=========================================="
 
-read -p " Do you want to enable xhost for the current user (recommended for GUI applications on the container)? (y/n)" -n 1 -r
+read -p " Allow local X11 clients such as Docker containers (adds 'xhost +local:' to ~/.bashrc)? (y/n) " -n 1 -r
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
     echo "=========================================="
-    echo "Enabling xhost for the current user"
-    echo "xhost +" >> ~/.bashrc
-    echo "Xhost permission granted for the current user permanently."
+    echo "Allowing local X11 connections (xhost +local:)"
+    # +local: only admits clients on this machine; plain 'xhost +' would admit any host.
+    grep -Fxq "xhost +local: >/dev/null" ~/.bashrc || echo "xhost +local: >/dev/null" >> ~/.bashrc
     echo "=========================================="
 fi
