@@ -8,4 +8,4 @@
 # 2.3.0 changed the Isometry3d bindings (set_translation rejects 1-D arrays).
 g2opy>=2.2.0,<2.3.0
 # 1.x removed OcTree.decayAndInsertPointCloud, used when octomap.use_decay is true.
-pyoctomap>=0.4.0,<1.0.0
+pyoctomap>=1.2.2,<2.0.0
