@@ -147,8 +147,8 @@ ROS dependencies are declared in [`package.xml`](package.xml) and installed by `
 python3 -m pip install --break-system-packages -r src/rwifi_slam_ros2/requirements.txt
 ```
 
-Both libraries are pinned below releases that changed their APIs; see
-[`requirements.txt`](requirements.txt).
+CI tests both ends of the ranges in [`requirements.txt`](requirements.txt). `pyoctomap` is held
+below 1.0, because 1.x removed the call that `octomap.use_decay` relies on.
 
 ## Tests
 

@@ -1,32 +1,117 @@
 ---
-# Publishes a release when a version tag is pushed:
-#   ./scripts/bump-version.sh 0.14.0 && git commit -am "Release 0.14.0"
-#   git tag v0.14.0 && git push origin main v0.14.0
+# Publishes a release when a version tag is pushed. See CONTRIBUTING.md#releases.
+#
+#   1. validate: tag format, package versions match the tag, tag is on main
+#   2. test:     the full CI workflow on the tagged commit
+#   3. image:    build, smoke-test, then push ghcr.io/<owner>/rwifi_slam
+#   4. release:  GitHub release with generated notes
+#
+# Run it manually (Actions > Release > Run workflow) without a tag for a dry run of the
+# current branch: everything except pushing the image and creating the release.
+# With a tag, it republishes that tag (useful if a run failed part-way).
 name: Release
 
 on:
   push:
-    tags: ["v*.*.*"]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish (e.g. v0.14.0). Leave empty for a dry run."
+        type: string
+        default: ""
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
-  release:
-    name: Publish image and GitHub release
+  validate:
+    name: Validate tag and versions
     runs-on: ubuntu-24.04
+    outputs:
+      ref: ${{ steps.check.outputs.ref }}
+      tag: ${{ steps.check.outputs.tag }}
+      version: ${{ steps.check.outputs.version }}
+      publish: ${{ steps.check.outputs.publish }}
+      latest: ${{ steps.check.outputs.latest }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
 
-      - name: Check tag matches package version
+      - name: Check tag, versions, and branch
+        id: check
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          manifest=src/rwifi_slam_ros2/package.xml
-          version=$(grep -oP '<version>\K[^<]+' "$manifest")
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error file=$manifest::package version $version does not match tag $GITHUB_REF_NAME"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="$INPUT_TAG"
+          fi
+
+          if [ -z "$tag" ]; then
+            version=$(./scripts/check-versions.sh)
+            echo "Dry run of $GITHUB_REF_NAME (version $version); nothing will be published."
+            {
+              echo "ref=$GITHUB_SHA"
+              echo "tag=v$version"
+              echo "version=$version"
+              echo "publish=false"
+              echo "latest=false"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$tag' is not vMAJOR.MINOR.PATCH"
             exit 1
           fi
+          version=$(./scripts/check-versions.sh "$tag")
+
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$tag points at $(git rev-parse --short HEAD), which is not on main"
+            exit 1
+          fi
+
+          # Move 'latest' only when this is the newest release tag.
+          newest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
+          latest=false
+          [ "$newest" = "$tag" ] && latest=true
+
+          {
+            echo "ref=$(git rev-parse HEAD)"
+            echo "tag=$tag"
+            echo "version=$version"
+            echo "publish=true"
+            echo "latest=$latest"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag (newest release tag: $newest, latest=$latest)"
+
+  test:
+    name: Test
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.validate.outputs.ref }}
+
+  image:
+    name: Build and push image
+    needs: [validate, test]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.validate.outputs.ref }}
 
       - name: Image name
         id: image
@@ -36,31 +121,90 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ steps.image.outputs.name }}
+          flavor: latest=false
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+            type=semver,pattern={{version}},value=${{ needs.validate.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.validate.outputs.tag }}
+            type=raw,value=latest,enable=${{ needs.validate.outputs.latest }}
 
       - uses: docker/setup-buildx-action@v4
 
-      - uses: docker/login-action@v4
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Docker/dockerfile.rel
+          load: true
+          tags: rwifi_slam:release-candidate
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=rel
+          cache-to: type=gha,scope=rel,mode=max
+
+      - name: Smoke test image
+        run: ./scripts/smoke-test-image.sh rwifi_slam:release-candidate "${{ needs.validate.outputs.version }}"
+
+      - name: Log in to GHCR
+        if: needs.validate.outputs.publish == 'true'
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push release image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: Docker/dockerfile.rel
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=rel
-          cache-to: type=gha,scope=rel,mode=max
+      # Push the image that passed the smoke test, rather than rebuilding it.
+      - name: Push image
+        if: needs.validate.outputs.publish == 'true'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            docker tag rwifi_slam:release-candidate "$tag"
+            docker push "$tag"
+          done <<< "$TAGS"
 
-      - name: Create GitHub release
+      - name: Summary
+        run: |
+          {
+            echo "### Image"
+            if [ "${{ needs.validate.outputs.publish }}" = true ]; then
+              echo "Pushed:"
+            else
+              echo "Dry run, not pushed. Would push:"
+            fi
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  github-release:
+    name: Create GitHub release
+    needs: [validate, image]
+    if: needs.validate.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.validate.outputs.tag }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          LATEST: ${{ needs.validate.outputs.latest }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/rwifi_slam:$VERSION"
+          # The backticks are a literal Markdown code fence, not command substitution.
+          # shellcheck disable=SC2016
+          notes=$(printf 'Docker image:\n\n```bash\ndocker pull %s\n```\n' "$image")
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; leaving its notes unchanged."
+            if [ "$LATEST" = true ]; then
+              gh release edit "$TAG" --latest
+            fi
+          else
+            # --notes is prepended to the generated notes.
+            gh release create "$TAG" --verify-tag --title "rwifi_slam $VERSION" \
+              --notes "$notes" --generate-notes --latest="$LATEST"
+          fi

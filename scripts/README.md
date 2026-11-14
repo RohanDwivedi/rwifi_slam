@@ -4,7 +4,9 @@
 |---|---|---|
 | [`build-docker.sh`](build-docker.sh) | host | Build the `dev` (default) or `rel` image |
 | [`build-isaac-sim-local.sh`](build-isaac-sim-local.sh) | dev container | Clone and build Isaac Sim 6.0 into `src/simulation/isaac_sim_dev/isaac-sim-6.0` |
-| [`bump-version.sh`](bump-version.sh) | host | Set the `rwifi_slam_ros2` version before tagging a release |
+| [`bump-version.sh`](bump-version.sh) | host | Set the version of every package before a release |
+| [`check-versions.sh`](check-versions.sh) | host, CI | Check that all packages share a version, and that it matches a tag |
+| [`smoke-test-image.sh`](smoke-test-image.sh) | host, CI | Check that a release image runs: executables, versions, imports, node start-up |
 | [`install-docker.sh`](install-docker.sh) | host | Install Docker Engine and the Compose plugin on Ubuntu 24.04 |
 | [`install-nvidia-isaac-sim-dependencies.sh`](install-nvidia-isaac-sim-dependencies.sh) | host | Install the NVIDIA 580 driver and the NVIDIA Container Toolkit |
 | [`cpu_governor.performance.sh`](cpu_governor.performance.sh) | host | Pin the CPU governor to `performance` for Isaac Sim |
@@ -30,17 +32,17 @@ default compilers, clones Isaac Sim `v6.0.0-dev` with Git LFS, and builds it.
 | `-x`, `--rebuild` | Clean, then build |
 | `-q`, `--quiet` / `-v`, `--verbose` | Build output level |
 
-## `bump-version.sh`
+## Release scripts
 
 ```bash
-./scripts/bump-version.sh 0.14.0
-git commit -am "Release 0.14.0"
-git tag v0.14.0
-git push origin main v0.14.0
+./scripts/bump-version.sh 0.14.0     # every src/*/package.xml -> 0.14.0; refuses a non-newer version
+./scripts/check-versions.sh          # prints the shared version, or fails if packages differ
+./scripts/check-versions.sh v0.14.0  # also fails unless the tag matches
+./scripts/smoke-test-image.sh ghcr.io/rohandwivedi/rwifi_slam:0.14.0 0.14.0
 ```
 
-Pushing the tag runs the [release workflow](../.github/workflows/release.yml). It checks that
-the tag matches `package.xml`, publishes the image to GHCR, and creates a GitHub release.
+`setup.py` files read their version from `package.xml`, so `package.xml` is the only file to
+edit. The release process is described in [CONTRIBUTING.md](../CONTRIBUTING.md#releases-maintainers).
 
 ## Host setup scripts
 

@@ -59,7 +59,10 @@ repos:
         args: [-c, Docker/.yamllint]
         files: ^(src/|\.github/)
 
-  - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.12
+  # actionlint shells out to shellcheck for run: blocks. This packaging pins shellcheck into the
+  # hook's environment, so local runs check exactly what CI checks.
+  - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
+    rev: v1.7.12.25
     hooks:
       - id: actionlint
+        additional_dependencies: [shellcheck-py==0.11.0.1]

@@ -42,8 +42,9 @@ docker pull ghcr.io/rohandwivedi/rwifi_slam:latest
 docker compose -f Docker/compose.yaml run --rm release
 ```
 
-Tags are `<major>.<minor>.<patch>`, `<major>.<minor>`, and `latest`. To build it locally,
-run `./scripts/build-docker.sh rel`. Isaac Sim isn't included; to simulate, mount a local
+Tags are `<major>.<minor>.<patch>`, `<major>.<minor>`, and `latest`. `latest` follows the newest
+release, so re-publishing an older tag doesn't move it. To build the image locally, run
+`./scripts/build-docker.sh rel`, then check it with `./scripts/smoke-test-image.sh`. Isaac Sim isn't included; to simulate, mount a local
 build at `/ros2_ws/src/simulation/isaac_sim_dev/isaac-sim-6.0`.
 
 ## Environment

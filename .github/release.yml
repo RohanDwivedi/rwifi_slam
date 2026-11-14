@@ -1,0 +1,14 @@
+---
+# Categories for automatically generated release notes, based on PR labels.
+changelog:
+  categories:
+    - title: New features
+      labels: [enhancement]
+    - title: Bug fixes
+      labels: [bug]
+    - title: Documentation
+      labels: [documentation]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: Other changes
+      labels: ["*"]

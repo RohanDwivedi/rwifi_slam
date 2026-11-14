@@ -9,7 +9,9 @@ on:
       - ".github/workflows/docker.yml"
       - "Docker/**"
       - "scripts/build-docker.sh"
+      - "scripts/smoke-test-image.sh"
       - "src/*/package.xml"
+      - "src/*/setup.py"
       - "src/rwifi_slam_ros2/requirements.txt"
   workflow_dispatch:
 
@@ -46,8 +48,4 @@ jobs:
 
       - name: Smoke test release image
         if: matrix.image == 'rel'
-        run: |
-          docker run --rm rwifi_slam:rel bash -c '
-            ros2 pkg executables rwifi_slam_ros2 &&
-            ros2 pkg executables wifi_rtt_interface &&
-            python3 -c "import rwifi_slam_ros2.rwifi_slam_ros2_node, wifi_rtt_interface.simulation_backend"'
+        run: ./scripts/smoke-test-image.sh rwifi_slam:rel "$(./scripts/check-versions.sh)"

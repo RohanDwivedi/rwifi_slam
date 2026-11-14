@@ -67,7 +67,7 @@ without it.
 
 - Branch from `main`, and keep each PR to one topic.
 - Fill in the PR template: what changed, why, and how you tested it.
-- CI must pass: **Lint (pre-commit)** and **Build and test (ROS 2 Jazzy)**. PRs that touch
+- CI must pass: **Lint (pre-commit)** and both **Build and test (ROS 2 Jazzy, …)** jobs, which test the newest and the minimum allowed dependency versions. PRs that touch
   `Docker/`, a `package.xml`, or `requirements.txt` also build both Docker images.
 - If you change behaviour, parameters, topics, or commands, update the relevant README.
 
@@ -82,16 +82,42 @@ without it.
 
 ## Releases (maintainers)
 
-```bash
-./scripts/bump-version.sh 0.14.0
-git commit -am "Release 0.14.0"
-git tag v0.14.0
-git push origin main v0.14.0
-```
+All packages share one version, set in their `package.xml` files (`setup.py` reads it from
+there). CI fails if the versions drift apart.
 
-The tag triggers the [release workflow](.github/workflows/release.yml). It publishes
-`ghcr.io/rohandwivedi/rwifi_slam:0.14.0` (also tagged `0.14` and `latest`) and a GitHub
-release with generated notes.
+1. **Bump the version in a PR.** Merge it like any other change:
+
+   ```bash
+   ./scripts/bump-version.sh 0.14.0
+   git switch -c release/0.14.0
+   git commit -am "Release 0.14.0"
+   git push -u origin release/0.14.0   # then open a PR
+   ```
+
+2. **Tag the merge commit on `main`:**
+
+   ```bash
+   git switch main && git pull
+   git tag -a v0.14.0 -m "rwifi_slam 0.14.0"
+   git push origin v0.14.0
+   ```
+
+The tag triggers the [release workflow](.github/workflows/release.yml):
+
+| Stage | What it checks or does |
+|---|---|
+| Validate | The tag is `vMAJOR.MINOR.PATCH`, matches every package version, and points at a commit on `main` |
+| Test | Runs the full CI workflow on the tagged commit |
+| Image | Builds `Docker/dockerfile.rel`, smoke-tests it, then pushes `ghcr.io/rohandwivedi/rwifi_slam:0.14.0` and `:0.14`. `:latest` moves only if this is the newest release tag |
+| Release | Creates a GitHub release with notes generated from merged PRs, grouped by label (see [`.github/release.yml`](.github/release.yml)) |
+
+To check a release before tagging, run the workflow by hand (**Actions → Release → Run
+workflow**) with the tag field empty. That is a dry run: it validates, tests, and builds the
+image, but publishes nothing. If a release fails part-way, re-run it, or run the workflow
+with the tag filled in. Publishing is idempotent: an existing GitHub release is left as it is.
+
+To get useful release notes, label PRs `enhancement`, `bug`, `documentation`, or
+`dependencies`.
 
 ## License
 
