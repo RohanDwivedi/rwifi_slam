@@ -2,14 +2,18 @@
 
 import os
 from glob import glob
+from xml.etree import ElementTree
 
 from setuptools import find_packages, setup
 
 package_name = "rwifi_slam_ros2"
+# package.xml is the single source of the version; scripts/bump-version.sh updates it.
+_package_xml = os.path.join(os.path.dirname(os.path.realpath(__file__)), "package.xml")
+version = ElementTree.parse(_package_xml).getroot().findtext("version")
 
 setup(
     name=package_name,
-    version="0.13.0",
+    version=version,
     packages=find_packages(exclude=["test"]),
     data_files=[
         (

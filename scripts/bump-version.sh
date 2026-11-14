@@ -1,31 +1,40 @@
 #!/bin/bash
-# Set the rwifi_slam_ros2 version in package.xml and setup.py.
+# Set the version of every ROS package in src/ (package.xml is the single source of truth;
+# setup.py files read it).
 #
-# Usage: ./scripts/bump-version.sh <major.minor.patch>
+# Usage: ./scripts/bump-version.sh <MAJOR.MINOR.PATCH>
 #
-# Then commit, tag, and push to trigger .github/workflows/release.yml:
-#   git commit -am "Release <version>"
-#   git tag v<version>
-#   git push origin main v<version>
+# Then open a PR with the change. After it merges, tag the merge commit to publish:
+#   git switch main && git pull
+#   git tag -a v<version> -m "rwifi_slam <version>"
+#   git push origin v<version>
 
 set -euo pipefail
 
 if [[ $# -ne 1 || ! "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Usage: $0 <major.minor.patch>" >&2
+    echo "Usage: $0 <MAJOR.MINOR.PATCH>" >&2
     exit 1
 fi
 
 NEW_VERSION="$1"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PACKAGE_XML="$PROJECT_ROOT/src/rwifi_slam_ros2/package.xml"
-SETUP_PY="$PROJECT_ROOT/src/rwifi_slam_ros2/setup.py"
 
-CURRENT_VERSION=$(grep -oP '<version>\K[^<]+' "$PACKAGE_XML")
+CURRENT_VERSION="$("$PROJECT_ROOT/scripts/check-versions.sh" 2>/dev/null)" || {
+    echo "Package versions are inconsistent; setting all of them to $NEW_VERSION." >&2
+    CURRENT_VERSION=""
+}
 
-sed -i "s|<version>$CURRENT_VERSION</version>|<version>$NEW_VERSION</version>|" "$PACKAGE_XML"
-sed -i "s|version=\"$CURRENT_VERSION\"|version=\"$NEW_VERSION\"|" "$SETUP_PY"
+if [[ -n "$CURRENT_VERSION" ]]; then
+    newest="$(printf '%s\n%s\n' "$CURRENT_VERSION" "$NEW_VERSION" | sort -V | tail -n 1)"
+    if [[ "$NEW_VERSION" == "$CURRENT_VERSION" || "$newest" != "$NEW_VERSION" ]]; then
+        echo "error: $NEW_VERSION is not newer than the current version $CURRENT_VERSION" >&2
+        exit 1
+    fi
+fi
 
-grep -q "<version>$NEW_VERSION</version>" "$PACKAGE_XML"
-grep -q "version=\"$NEW_VERSION\"" "$SETUP_PY"
+for manifest in "$PROJECT_ROOT"/src/*/package.xml; do
+    sed -i -E "0,/<version>[^<]+<\/version>/s//<version>$NEW_VERSION<\/version>/" "$manifest"
+done
 
-echo "rwifi_slam_ros2: $CURRENT_VERSION -> $NEW_VERSION"
+"$PROJECT_ROOT/scripts/check-versions.sh" >/dev/null
+echo "All packages: ${CURRENT_VERSION:-mixed} -> $NEW_VERSION"

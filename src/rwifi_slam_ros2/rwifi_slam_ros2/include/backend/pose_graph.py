@@ -28,10 +28,8 @@ def _to_isometry(transform_matrix: np.ndarray) -> g2o.Isometry3d:
     Returns:
         g2o Isometry3d with the same rotation and translation.
     """
-    isometry = g2o.Isometry3d()
-    isometry.set_rotation(transform_matrix[:3, :3].copy())
-    isometry.set_translation(transform_matrix[:3, 3].copy())
-    return isometry
+    # The 4x4 constructor is accepted by both the pybind11 (<2.3) and nanobind (>=2.3) bindings.
+    return g2o.Isometry3d(np.ascontiguousarray(transform_matrix, dtype=np.float64))
 
 
 def _from_isometry(iso: g2o.Isometry3d) -> np.ndarray:
@@ -153,9 +151,7 @@ class Graph:
             raise IndexError(f"Invalid loop closure indices {from_index} -> {to_index}")
 
         edge = self._edge(from_index, to_index, np.eye(4, dtype=np.float64), np.eye(6, dtype=np.float64))
-        robust_kernel = g2o.RobustKernelDCS()
-        robust_kernel.set_delta(self._robustness_threshold)
-        edge.set_robust_kernel(robust_kernel)
+        edge.set_robust_kernel(g2o.RobustKernelDCS(self._robustness_threshold))
         self._opt.add_edge(edge)
         _logger.debug(f"Added loop closure {from_index} -> {to_index}")
 

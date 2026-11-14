@@ -6,10 +6,17 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Called by release.yml so a release is tested exactly like a PR.
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to test (defaults to the caller's ref).
+        type: string
+        default: ""
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || inputs.ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -20,6 +27,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
 
       - uses: actions/setup-python@v7
         with:
@@ -36,10 +45,18 @@ jobs:
           python -m pip install pre-commit
           pre-commit run --all-files --show-diff-on-failure --color=always
 
+      - name: Check package versions
+        run: ./scripts/check-versions.sh
+
   build-and-test:
-    name: Build and test (ROS 2 Jazzy)
+    name: Build and test (ROS 2 Jazzy, ${{ matrix.deps }} deps)
     runs-on: ubuntu-24.04
     container: ros:jazzy-ros-base
+    strategy:
+      fail-fast: false
+      matrix:
+        # latest: newest versions requirements.txt allows; minimum: its lower bounds.
+        deps: [latest, minimum]
     defaults:
       run:
         shell: bash
@@ -49,6 +66,8 @@ jobs:
       ROSDEP_SKIP_KEYS: rviz2 rviz_imu_plugin imu_tools teleop_twist_keyboard nav2_lifecycle_manager
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install system dependencies
         run: |
@@ -58,7 +77,14 @@ jobs:
           rosdep install --from-paths src --ignore-src -y --skip-keys "$ROSDEP_SKIP_KEYS"
 
       - name: Install Python dependencies
-        run: python3 -m pip install --break-system-packages -r src/rwifi_slam_ros2/requirements.txt
+        run: |
+          requirements=src/rwifi_slam_ros2/requirements.txt
+          if [ "${{ matrix.deps }}" = minimum ]; then
+            sed -nE 's/^([A-Za-z0-9_.-]+)>=([^,]+).*/\1==\2/p' "$requirements" > /tmp/minimum.txt
+            requirements=/tmp/minimum.txt
+          fi
+          python3 -m pip install --break-system-packages -r "$requirements"
+          python3 -m pip list 2>/dev/null | grep -i -E '^(g2opy|pyoctomap) '
 
       - name: Build
         run: |
@@ -80,7 +106,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results
+          name: test-results-${{ matrix.deps }}
           path: |
             build/*/pytest.xml
             build/*/test_results/

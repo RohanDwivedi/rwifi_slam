@@ -37,15 +37,16 @@ duplicated.
 
 Follow-ups:
 
-- [ ] **Port to `g2opy` ≥ 2.3.** 2.3.0 changed the `Isometry3d` bindings and
-      `set_translation` rejects the 1-D arrays passed in
-      [`pose_graph.py`](../src/rwifi_slam_ros2/rwifi_slam_ros2/include/backend/pose_graph.py).
-      Moot if M1.3 moves the graph to SE(2).
+- [x] **Support `g2opy` 2.3.** It changed the `Isometry3d` and `RobustKernelDCS` bindings.
+      `pose_graph.py` now uses constructor forms that both 2.2 and 2.3 accept, and CI tests both
+      ends of the allowed range.
+- [x] **One version for all packages.** `package.xml` is the only source; CI and the release
+      workflow check the packages agree.
+- [x] **Gated, repeatable releases.** A tag runs validation, the full test suite, and an image
+      smoke test before anything is published. A manual dry run is available.
 - [ ] **Port to `pyoctomap` ≥ 1.0.** 1.x removed `OcTree.decayAndInsertPointCloud`, used when
-      `octomap.use_decay` is true.
-- [ ] Protect `main`: require the `CI` workflow to pass before merging.
-- [ ] Give every package the same version if the project is released through bloom, which
-      requires it.
+      `octomap.use_decay` is true. Dependabot ignores 1.x until then.
+- [ ] Protect `main`: require the CI checks to pass before merging.
 
 ---
 
