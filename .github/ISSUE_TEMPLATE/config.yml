@@ -1,0 +1,6 @@
+---
+blank_issues_enabled: true
+contact_links:
+  - name: Roadmap
+    url: https://github.com/RohanDwivedi/rwifi_slam/blob/main/docs/ROADMAP.md
+    about: Known issues and planned work. Check here before reporting.

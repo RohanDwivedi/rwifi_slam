@@ -1,12 +1,8 @@
-# Build the release image
-# we dont mount volumes for the source code
-# we copy the ws and build it inside the image
-# Isaac sim is not packaged in this image
-# intended for production release only
+# Release image: ROS 2 Jazzy desktop with the rwifi_slam workspace built in.
+# Published to ghcr.io/rohandwivedi/rwifi_slam by .github/workflows/release.yml.
+# Isaac Sim is not included; mount it at runtime if you need the simulator.
 
 FROM osrf/ros:jazzy-desktop AS release
-
-ARG DEV=true
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -16,22 +12,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-jazzy-rmw-zenoh-cpp \
   && rm -rf /var/lib/apt/lists/*
 
-# Copy entire src directory to ros2_ws/src
-# .dockerignore excludes isaac-sim-6.0, which should be mounted separately
-COPY --chown=1000:1000 src/ /ros2_ws/src/
-
 WORKDIR /ros2_ws
 
+COPY --chown=1000:1000 src/ /ros2_ws/src/
+
+RUN apt-get update \
+  && rosdep update \
+  && rosdep install --from-paths src --ignore-src -y \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip install --break-system-packages --no-cache-dir -r src/rwifi_slam_ros2/requirements.txt
+
+RUN . /opt/ros/jazzy/setup.sh \
+  && colcon build --event-handlers console_cohesion+ \
+  && rm -rf build log \
+  && chown -R 1000:1000 /ros2_ws
+
 COPY Docker/entrypoint.sh /ros2_ws/entrypoint.sh
-COPY Docker/requirements-dev.txt /ros2_ws/requirements-dev.txt
-COPY Docker/pyproject.toml /ros2_ws/pyproject.toml
-COPY Docker/.yamllint /ros2_ws/.yamllint
-
-RUN chmod +x /ros2_ws/entrypoint.sh \
-  && chown 1000:1000 /ros2_ws
-
-RUN python3 -m pip install --break-system-packages -r /ros2_ws/requirements-dev.txt
+RUN chmod +x /ros2_ws/entrypoint.sh
 
 ENTRYPOINT ["/bin/bash", "/ros2_ws/entrypoint.sh"]
 CMD ["bash"]
-

@@ -1,8 +1,24 @@
-# Pre-commit hooks for formatting and linting.
+# Pre-commit hooks for formatting and linting. CI runs exactly these hooks.
 # Install: pip install pre-commit && pre-commit install
 # Run on all files: pre-commit run --all-files
 
+exclude: ^src/simulation/isaac_sim_dev/assets/
+
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+        exclude: ^src/simulation/isaac_sim_dev/configs/warehouse_nlos_map\.pkl$
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-xml
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: trailing-whitespace
+
   - repo: https://github.com/psf/black
     rev: 24.10.0
     hooks:
@@ -41,4 +57,9 @@ repos:
       - id: yamllint
         name: yamllint
         args: [-c, Docker/.yamllint]
-        files: ^src/
+        files: ^(src/|\.github/)
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint

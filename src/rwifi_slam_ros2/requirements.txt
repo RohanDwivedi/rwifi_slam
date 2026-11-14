@@ -1,0 +1,11 @@
+# Python dependencies that have no rosdep key.
+# numpy and scipy come from apt via rosdep (python3-numpy, python3-scipy);
+# do not add them here, or pip will try to replace the Debian-managed copies.
+#
+# Install with:
+#   python3 -m pip install --break-system-packages -r src/rwifi_slam_ros2/requirements.txt
+
+# 2.3.0 changed the Isometry3d bindings (set_translation rejects 1-D arrays).
+g2opy>=2.2.0,<2.3.0
+# 1.x removed OcTree.decayAndInsertPointCloud, used when octomap.use_decay is true.
+pyoctomap>=0.4.0,<1.0.0

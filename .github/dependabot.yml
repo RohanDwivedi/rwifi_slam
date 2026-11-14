@@ -1,0 +1,17 @@
+---
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # g2opy and pyoctomap are pinned below versions with breaking API changes;
+  # CI will fail on a bump until the code is ported (see docs/ROADMAP.md).
+  - package-ecosystem: pip
+    directory: /src/rwifi_slam_ros2
+    schedule:
+      interval: monthly

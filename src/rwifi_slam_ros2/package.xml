@@ -3,24 +3,39 @@
 <package format="3">
   <name>rwifi_slam_ros2</name>
   <version>0.13.0</version>
-  <description>Range WiFi SLAM ROS2 package for SLAM in indoor environment</description>
+  <description>Range Wi-Fi SLAM: EKF odometry, Wi-Fi RTT loop closure, g2o pose graph, and OctoMap mapping for indoor robots.</description>
   <maintainer email="myemail.rohan@gmail.com">Rohan Dwivedi</maintainer>
-  <license>Apache 2.0</license>
+  <license>Apache-2.0</license>
+  <url type="repository">https://github.com/RohanDwivedi/rwifi_slam</url>
+  <url type="bugtracker">https://github.com/RohanDwivedi/rwifi_slam/issues</url>
 
-  <test_depend>ament_copyright</test_depend>
-  <test_depend>ament_flake8</test_depend>
-  <test_depend>ament_pep257</test_depend>
-  <test_depend>python3-pytest</test_depend>
-  <exec_depend>python3-scipy</exec_depend>
+  <!-- Core runtime dependencies. g2opy and pyoctomap have no rosdep keys;
+       install them from requirements.txt. -->
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>rcl_interfaces</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>sensor_msgs_py</exec_depend>
-  <exec_depend>wifi_rtt_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
   <exec_depend>wifi_rtt_interface</exec_depend>
-  <exec_depend>teleop_twist_keyboard</exec_depend>
-  <exec_depend>nav2_lifecycle_manager</exec_depend>
-  <exec_depend>rviz_imu_plugin</exec_depend>
+  <exec_depend>wifi_rtt_msgs</exec_depend>
+
+  <!-- Used by the bundled launch files and RViz configuration. -->
+  <exec_depend>ament_index_python</exec_depend>
   <exec_depend>imu_tools</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>rviz_imu_plugin</exec_depend>
+  <exec_depend>teleop_twist_keyboard</exec_depend>
+  <exec_depend>tf2_ros_py</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
 
   <export>
     <build_type>ament_python</build_type>

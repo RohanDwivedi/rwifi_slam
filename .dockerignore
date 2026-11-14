@@ -1,0 +1,27 @@
+# Build context is the repository root (see scripts/build-docker.sh and the release workflow).
+
+# Version control
+.git/
+
+# Isaac Sim is built locally and mounted as a volume, never baked into an image
+src/simulation/isaac_sim_dev/isaac-sim-6.0/
+
+# Caches
+.isaac-sim-cache/
+.buildx-cache/
+.cache/
+.pre-commit-cache/
+
+# colcon build artifacts
+build/
+install/
+log/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
